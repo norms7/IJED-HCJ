@@ -127,6 +127,7 @@ class Teacher(Base):
     class_assignments: Mapped[list["TeacherClassAssignment"]] = relationship(
         "TeacherClassAssignment", back_populates="teacher"
     )
+    modules: Mapped[list["Module"]] = relationship("Module", back_populates="teacher")
 
 
 # ── teacher_class_assignments ─────────────────────────────────────────────────
@@ -198,7 +199,11 @@ class Module(Base):
     description: Mapped[Optional[str]] = mapped_column(Text)
     class_id: Mapped[Optional[int]] = mapped_column(ForeignKey("classes.id"))
     subject_id: Mapped[Optional[int]] = mapped_column(ForeignKey("subjects.id"))
+    teacher_id: Mapped[Optional[int]] = mapped_column(ForeignKey("teachers.id"))
     order: Mapped[int] = mapped_column(Integer, default=0)
+    term: Mapped[Optional[str]] = mapped_column(String(20))  # 1st, 2nd, 3rd, 4th
+    file_url: Mapped[Optional[str]] = mapped_column(String(500))
+    file_name: Mapped[Optional[str]] = mapped_column(String(255))
     is_published: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -206,6 +211,7 @@ class Module(Base):
 
     class_: Mapped[Optional["Class"]] = relationship("Class", back_populates="modules")
     subject: Mapped[Optional["Subject"]] = relationship("Subject", back_populates="modules")
+    teacher: Mapped[Optional["Teacher"]] = relationship("Teacher", back_populates="modules")
     activities: Mapped[list["Activity"]] = relationship(
         "Activity", back_populates="module", cascade="all, delete-orphan"
     )

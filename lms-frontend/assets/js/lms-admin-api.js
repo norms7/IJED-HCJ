@@ -238,6 +238,65 @@ class LMSAdminAPI {
   async deleteActivity(id) {
     return this._request("DELETE", `/admin/activities/${id}`);
   }
+
+  // ── Teacher Portal ────────────────────────────────────────────────────────
+
+  async getMySubjects() {
+    return this._request("GET", "/teacher/me/subjects");
+  }
+
+  async getMyModules(subject_id = null) {
+    const q = subject_id ? `?subject_id=${subject_id}` : "";
+    return this._request("GET", `/teacher/me/modules${q}`);
+  }
+
+  async uploadModuleFile(file) {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(`${this.baseURL}/teacher/me/modules/upload`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${this.token}` },
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+    return res.json();
+  }
+
+  async createMyModule({ title, subject_id, description, term, file_url, file_name, is_published = true }) {
+    const formData = new FormData();
+    formData.append("title", title);
+    formData.append("subject_id", subject_id);
+    if (description) formData.append("description", description);
+    if (term) formData.append("term", term);
+    if (file_url) formData.append("file_url", file_url);
+    if (file_name) formData.append("file_name", file_name);
+    formData.append("is_published", is_published);
+
+    const res = await fetch(`${this.baseURL}/teacher/me/modules`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${this.token}` },
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+    return res.json();
+  }
+
+  // ── Student Portal ────────────────────────────────────────────────────────
+
+  async getStudentSubjects() {
+    return this._request("GET", "/student/me/subjects");
+  }
+
+  async getStudentModules(subject_id = null) {
+    const q = subject_id ? `?subject_id=${subject_id}` : "";
+    return this._request("GET", `/student/me/modules${q}`);
+  }
 }
 
 // ── Example dashboard bootstrap (paste into your admin.js / dashboard.js) ───

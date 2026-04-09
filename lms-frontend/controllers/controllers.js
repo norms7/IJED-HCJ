@@ -271,11 +271,34 @@ const DashboardController = {
       CalendarController.init();
       return;
     }
+
+        // Load real modules for teacher from backend
+    if (sectionId === 'modules' && this.currentUser.role === 'teacher') {
+      api.getMyModules().then(modules => {
+        const area = document.getElementById('content-area');
+        if (!modules.length) {
+          const empty = area.querySelector('.empty-state-title');
+          if (empty) empty.textContent = 'No modules uploaded yet.';
+          return;
+        }
+        console.log('Real modules loaded:', modules);
+        // Modules are loaded — future step will render them into the UI
+      }).catch(err => console.error('Modules load error:', err.message));
+    }
+
+    // Load real modules for student from backend
+    if (sectionId === 'modules' && this.currentUser.role === 'student') {
+      api.getStudentModules().then(modules => {
+        console.log('Student modules loaded:', modules);
+      }).catch(err => console.error('Student modules error:', err.message));
+    }
     // Handle pending tab switch (manageTeachers / manageStudents nav items)
     if (AdminController._pendingTab) {
       AdminController._switchTab(AdminController._pendingTab);
       AdminController._pendingTab = null;
     }
+
+    
     const searchInput = document.getElementById('global-search');
     if (searchInput) {
       searchInput.addEventListener('input', (e) => {
@@ -1023,52 +1046,112 @@ const TeacherController = {
       .join('');
   },
 
-  openAddModule() {
-    Modal.show('Upload New Module', `
-      <div class="form-group">
-        <label class="form-label">Module Title *</label>
-        <input class="form-control" id="m-title" placeholder="e.g. Introduction to Algebra" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">Subject *</label>
-        <select class="form-control" id="m-subject">${this._getSubjectOptions()}</select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Description</label>
-        <textarea class="form-control" id="m-desc" placeholder="Brief description of the module…"></textarea>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">File Label</label>
-          <input class="form-control" id="m-file" placeholder="e.g. lesson1.pdf" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Week Number</label>
-          <input class="form-control" id="m-week" type="number" min="1" value="1" />
-        </div>
-      </div>`,
-      `<button class="btn btn-ghost"   onclick="Modal.close()">Cancel</button>
-       <button class="btn btn-primary" onclick="TeacherController.saveModule()">Upload Module</button>`
-    );
-  },
+  async openAddModule() {
+  // Fetch teacher's assigned subjects from real backend
+  let subjectOpts = '<option value="">Loading...</option>';
+  try {
+    const subjects = await api.getMySubjects();
+    if (subjects.length === 0) {
+      subjectOpts = '<option value="">No subjects assigned yet</option>';
+    } else {
+      subjectOpts = subjects.map(s =>
+        `<option value="${s.subject_id}" data-class="${s.class_id}">
+          ${escHtml(s.subject_name)} — ${escHtml(s.class_name)}
+        </option>`
+      ).join('');
+    }
+  } catch (err) {
+    subjectOpts = '<option value="">Failed to load subjects</option>';
+  }
 
-  saveModule() {
-    const title = document.getElementById('m-title').value.trim();
-    if (!Validate.required(title, 'Module title')) return;
+  Modal.show('Upload New Module', `
+    <div class="form-group">
+      <label class="form-label">Module Title *</label>
+      <input class="form-control" id="m-title" placeholder="e.g. Introduction to Algebra" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Subject *</label>
+      <select class="form-control" id="m-subject">${subjectOpts}</select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Description</label>
+      <textarea class="form-control" id="m-desc"
+        placeholder="Brief description of the module…"></textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Term</label>
+        <select class="form-control" id="m-term">
+          <option value="">— Select Term —</option>
+          <option value="1st">1st Term</option>
+          <option value="2nd">2nd Term</option>
+          <option value="3rd">3rd Term</option>
+          <option value="4th">4th Term</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">PDF File</label>
+        <input class="form-control" id="m-file" type="file" accept=".pdf" />
+        <div id="m-file-status" style="font-size:12px;margin-top:4px;color:var(--gray-400)">
+          No file selected
+        </div>
+      </div>
+    </div>`,
+    `<button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
+     <button class="btn btn-primary" onclick="TeacherController.saveModule()">
+       Upload Module
+     </button>`
+  );
 
-    const user = DashboardController.currentUser;
-    moduleModel.add({
+  // Show filename when file is picked
+  document.getElementById('m-file').addEventListener('change', function() {
+    const status = document.getElementById('m-file-status');
+    status.textContent = this.files[0]
+      ? `Selected: ${this.files[0].name}`
+      : 'No file selected';
+  });
+},
+
+async saveModule() {
+  const title   = document.getElementById('m-title').value.trim();
+  const subject = document.getElementById('m-subject').value;
+  const term    = document.getElementById('m-term').value;
+  const fileInput = document.getElementById('m-file');
+  const file    = fileInput?.files?.[0];
+
+  if (!Validate.required(title, 'Module title')) return;
+  if (!subject) { Toast.show('Please select a subject.', 'error'); return; }
+
+  try {
+    let file_url = null;
+    let file_name = null;
+
+    // Step 1: upload PDF if provided
+    if (file) {
+      Toast.show('Uploading PDF...', 'info');
+      const uploaded = await api.uploadModuleFile(file);
+      file_url  = uploaded.file_url;
+      file_name = uploaded.file_name;
+    }
+
+    // Step 2: create the module
+    await api.createMyModule({
       title,
+      subject_id:  parseInt(subject),
       description: document.getElementById('m-desc').value.trim(),
-      subjectId:   document.getElementById('m-subject').value,
-      teacherId:   user.id,
-      fileLabel:   document.getElementById('m-file').value.trim() || 'module.pdf',
-      week:        parseInt(document.getElementById('m-week').value) || 1,
+      term:        term || null,
+      file_url,
+      file_name,
+      is_published: true,
     });
+
     Modal.close();
     Toast.show('Module uploaded successfully!', 'success');
     DashboardController.loadSection('modules');
-  },
+  } catch (err) {
+    Toast.show(err.message || 'Failed to upload module.', 'error');
+  }
+},
 
   openEditModule(id) {
     const m = moduleModel.getById(id);

@@ -213,13 +213,25 @@ class StudentListResponse(BaseModel):
 
 # ── Module ────────────────────────────────────────────────────────────────────
 
+VALID_TERMS = {"1st", "2nd", "3rd", "4th"}
+
+
 class ModuleCreate(BaseModel):
     title: str = Field(min_length=1, max_length=255)
     description: Optional[str] = None
     class_id: Optional[int] = None
     subject_id: Optional[int] = None
+    teacher_id: Optional[int] = None
     order: int = 0
+    term: Optional[str] = None
     is_published: bool = False
+
+    @field_validator("term")
+    @classmethod
+    def validate_term(cls, v: Optional[str]) -> Optional[str]:
+        if v and v not in VALID_TERMS:
+            raise ValueError(f"term must be one of {VALID_TERMS}")
+        return v
 
 
 class ModuleUpdate(BaseModel):
@@ -228,7 +240,10 @@ class ModuleUpdate(BaseModel):
     class_id: Optional[int] = None
     subject_id: Optional[int] = None
     order: Optional[int] = None
+    term: Optional[str] = None
     is_published: Optional[bool] = None
+    file_url: Optional[str] = None
+    file_name: Optional[str] = None
 
 
 class ModuleOut(BaseModel):
@@ -237,7 +252,11 @@ class ModuleOut(BaseModel):
     description: Optional[str] = None
     class_id: Optional[int] = None
     subject_id: Optional[int] = None
+    teacher_id: Optional[int] = None
     order: int
+    term: Optional[str] = None
+    file_url: Optional[str] = None
+    file_name: Optional[str] = None
     is_published: bool
     created_at: datetime
     activity_count: int = 0
