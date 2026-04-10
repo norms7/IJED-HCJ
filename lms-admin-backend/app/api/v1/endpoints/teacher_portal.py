@@ -199,6 +199,43 @@ async def create_my_module(
     return out
 
 
+# ── DELETE /teacher/me/modules/{module_id} ───────────────────────────────────
+
+@router.delete(
+    "/me/modules/{module_id}",
+    summary="Delete one of my modules",
+    status_code=status.HTTP_200_OK,
+)
+async def delete_my_module(
+    module_id: int,
+    teacher: Teacher = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Delete a module that belongs to this teacher.
+    Returns 403 if the module belongs to a different teacher.
+    """
+    result = await db.execute(
+        select(Module).where(Module.id == module_id)
+    )
+    module = result.scalar_one_or_none()
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+    if module.teacher_id != teacher.id:
+        raise HTTPException(status_code=403, detail="You can only delete your own modules")
+
+    # Remove the uploaded file from disk if it exists
+    if module.file_url:
+        filename = module.file_url.split("/")[-1]
+        file_path = os.path.join(UPLOAD_DIR, filename)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+    await db.delete(module)
+    await db.flush()
+    return {"message": "Module deleted successfully", "id": module_id}
+
+
 # ── GET /student/me/modules (student sees modules for their subjects) ─────────
 
 student_router = APIRouter(prefix="/student", tags=["Student Portal"])
