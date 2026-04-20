@@ -820,3 +820,140 @@ body.dark-mode .badge-blue         { background: #0d1a2e; color: #7ea8d8; }
   .um-header-actions { width: 100%; }
   .um-tab       { padding: 8px 12px; font-size: 12px; }
 }
+
+/* ============================================================
+   NEW: Teacher Dashboard Subject Cards (for updated views.js)
+   ============================================================ */
+
+/* Grid for teacher subject cards */
+.teacher-subjects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+  margin-top: 20px;
+}
+
+/* Individual subject card */
+.teacher-subject-card {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--gray-200);
+  transition: all var(--transition);
+}
+.teacher-subject-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+  border-color: var(--rose-mid);
+}
+
+/* Header: subject name + class badge */
+.teacher-subject-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.teacher-subject-name {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--maroon);
+}
+.teacher-subject-header .badge {
+  font-size: 0.7rem;
+  padding: 3px 10px;
+}
+
+/* Details: grade level & schedule */
+.teacher-subject-details {
+  display: flex;
+  gap: 16px;
+  font-size: 0.8rem;
+  color: var(--gray-600);
+  margin-bottom: 18px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--gray-200);
+}
+
+/* Action buttons */
+.teacher-subject-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.teacher-subject-actions .btn-xs {
+  padding: 4px 10px;
+  font-size: 0.7rem;
+}
+
+/* Dark mode overrides for teacher cards */
+body.dark-mode .teacher-subject-card {
+  background: #2a1a1f;
+  border-color: #4a2d33;
+}
+body.dark-mode .teacher-subject-name {
+  color: #f5c6ce;
+}
+body.dark-mode .teacher-subject-details {
+  color: #c9a0a8;
+  border-bottom-color: #4a2d33;
+}
+body.dark-mode .teacher-subject-header .badge {
+  background: #3d1a22;
+  color: #f5c6ce;
+}
+
+/* ============================================================
+   ENHANCED My Subjects Page (subject list with actions)
+   ============================================================ */
+
+/* Ensure subject-actions are properly aligned */
+.subject-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Make subject-item more spacious for buttons */
+.subject-item {
+  padding: 14px 18px;
+  gap: 16px;
+}
+
+/* Responsive: stack actions on very small screens */
+@media (max-width: 640px) {
+  .subject-item {
+    flex-wrap: wrap;
+  }
+  .subject-actions {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .teacher-subjects-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================
+   Student List Modal (for teacher view students)
+   ============================================================ */
+.student-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+.student-list > div {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--gray-200);
+}
+.student-list > div:last-child {
+  border-bottom: none;
+}
+body.dark-mode .student-list > div {
+  border-bottom-color: #4a2d33;
+}

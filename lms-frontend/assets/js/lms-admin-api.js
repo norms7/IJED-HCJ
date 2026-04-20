@@ -22,7 +22,9 @@ class LMSAdminAPI {
 
   _headers(extra = {}) {
     const h = { "Content-Type": "application/json", ...extra };
-    if (this.token) h["Authorization"] = `Bearer ${this.token}`;
+    if (this.token) {
+      h["Authorization"] = `Bearer ${this.token}`;
+    }
     return h;
   }
 
@@ -47,6 +49,12 @@ class LMSAdminAPI {
   _saveToken(token) {
     this.token = token;
     localStorage.setItem("lms_token", token);
+    // Also store the token in the session object for reload
+    const session = this.getCurrentUser();
+    if (session) {
+      session._token = token;
+      localStorage.setItem("ijla_session", JSON.stringify(session));
+    }
   }
 
   _clearToken() {
@@ -64,11 +72,18 @@ class LMSAdminAPI {
   async login(email, password) {
     const data = await this._request("POST", "/auth/login", { email, password });
     this._saveToken(data.access_token);
-    localStorage.setItem("lms_user", JSON.stringify({
-      id: data.user_id,
-      role: data.role,
+
+    const userPayload = {
+      id:        data.user_id,
+      role:      data.role,
       full_name: data.full_name,
-    }));
+      name:      data.full_name,
+      _token:    data.access_token,
+    };
+
+    localStorage.setItem("lms_user", JSON.stringify(userPayload));
+    localStorage.setItem("ijla_session", JSON.stringify(userPayload));
+
     return data;
   }
 
@@ -89,9 +104,6 @@ class LMSAdminAPI {
 
   // ── Users ─────────────────────────────────────────────────────────────────
 
-  /**
-   * @param {Object} params - { role, is_active, search, page, page_size }
-   */
   async getUsers(params = {}) {
     const q = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => v !== undefined && q.append(k, v));
@@ -129,13 +141,31 @@ class LMSAdminAPI {
   }
 
   async createTeacherProfile({ user_id, employee_id, specialization, contact_number }) {
-    return this._request("POST", "/admin/teachers", { user_id, employee_id, specialization, contact_number });
+    return this._request("POST", "/admin/teachers", {
+      user_id, employee_id, specialization, contact_number,
+    });
   }
 
   async assignTeacherToClass({ teacher_id, class_id, subject_id, schedule }) {
     return this._request("POST", "/admin/teachers/assign-class", {
       teacher_id, class_id, subject_id, schedule,
     });
+  }
+
+  async getTeacherByUserId(userId) {
+    return this._request("GET", `/admin/teachers/by-user/${userId}`);
+  }
+
+  async updateTeacherProfile(teacherId, data) {
+    return this._request("PUT", `/admin/teachers/${teacherId}`, data);
+  }
+
+  async updateTeacherAssignment(assignmentId, data) {
+    return this._request("PUT", `/admin/teachers/assignments/${assignmentId}`, data);
+  }
+
+  async deleteTeacherAssignment(assignmentId) {
+    return this._request("DELETE", `/admin/teachers/assignments/${assignmentId}`);
   }
 
   // ── Students ──────────────────────────────────────────────────────────────
@@ -160,6 +190,18 @@ class LMSAdminAPI {
 
   async assignStudentToSection({ student_id, section_id }) {
     return this._request("POST", "/admin/students/assign-section", { student_id, section_id });
+  }
+
+  async getStudentSubjectEnrollments(studentId) {
+    return this._request("GET", `/admin/students/${studentId}/subjects`);
+  }
+
+  async enrollStudentSubjects(studentId, subjectIds) {
+    return this._request("POST", `/admin/students/${studentId}/subjects`, { subject_ids: subjectIds });
+  }
+
+  async unenrollStudentSubject(studentId, subjectId) {
+    return this._request("DELETE", `/admin/students/${studentId}/subjects/${subjectId}`);
   }
 
   // ── Classes ───────────────────────────────────────────────────────────────
@@ -245,9 +287,30 @@ class LMSAdminAPI {
     return this._request("GET", "/teacher/me/subjects");
   }
 
+  async getClassStudents(classId) {
+    return this._request("GET", `/teacher/me/class/${classId}/students`);
+  }
+
+  async uploadSubjectMaterial(subjectId, formData) {
+    const res = await fetch(`${this.baseURL}/teacher/me/subjects/${subjectId}/materials`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${this.token}` },
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+    return res.json();
+  }
+
   async getMyModules(subject_id = null) {
     const q = subject_id ? `?subject_id=${subject_id}` : "";
     return this._request("GET", `/teacher/me/modules${q}`);
+  }
+
+  async deleteMyModule(id) {
+    return this._request("DELETE", `/teacher/me/modules/${id}`);
   }
 
   async uploadModuleFile(file) {
@@ -297,38 +360,23 @@ class LMSAdminAPI {
     const q = subject_id ? `?subject_id=${subject_id}` : "";
     return this._request("GET", `/student/me/modules${q}`);
   }
+
+  // Legacy / utility method (kept for compatibility)
+  async request(method, path, body) {
+    const url = this.baseURL + '/api/v1' + path;
+    const options = {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.token}`
+      },
+      body: body ? JSON.stringify(body) : undefined
+    };
+    const res = await fetch(url, options);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || res.statusText);
+    }
+    return res.json();
+  }
 }
-
-// ── Example dashboard bootstrap (paste into your admin.js / dashboard.js) ───
-/*
-const api = new LMSAdminAPI("http://localhost:8000");
-
-document.addEventListener("DOMContentLoaded", async () => {
-  if (!api.isLoggedIn()) {
-    window.location.href = "/login.html";
-    return;
-  }
-
-  try {
-    const stats = await api.getDashboardStats();
-    document.getElementById("total-users").textContent    = stats.total_users;
-    document.getElementById("total-teachers").textContent = stats.total_teachers;
-    document.getElementById("total-students").textContent = stats.total_students;
-    document.getElementById("total-modules").textContent  = stats.total_modules;
-
-    // Recent users table
-    const tbody = document.getElementById("recent-users-body");
-    stats.recent_users.forEach(u => {
-      tbody.innerHTML += `
-        <tr>
-          <td>${u.first_name} ${u.last_name}</td>
-          <td>${u.email}</td>
-          <td><span class="badge badge-${u.role.name}">${u.role.name}</span></td>
-          <td>${new Date(u.created_at).toLocaleDateString()}</td>
-        </tr>`;
-    });
-  } catch (err) {
-    console.error("Dashboard load error:", err.message);
-  }
-});
-*/
