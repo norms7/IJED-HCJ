@@ -141,10 +141,14 @@ class TeacherCreate(BaseModel):
 
 class AssignClassRequest(BaseModel):
     teacher_id: int
-    class_id: int
-    subject_id: int
-    schedule: Optional[str] = Field(None, example="MWF 8:00-9:00 AM")
+    class_id: Optional[int] = None
+    subject_id: Optional[int] = None
+    schedule: Optional[str] = None
 
+class AssignmentUpdate(BaseModel):
+    class_id: Optional[int] = None
+    subject_id: Optional[int] = None
+    schedule: Optional[str] = None
 
 class TeacherAssignmentOut(BaseModel):
     id: int
@@ -171,7 +175,11 @@ class TeacherListResponse(BaseModel):
     total: int
     items: list[TeacherOut]
 
-
+class TeacherUpdate(BaseModel):
+    employee_id: Optional[str] = None
+    specialization: Optional[str] = None
+    contact_number: Optional[str] = None
+    
 # ── Student ───────────────────────────────────────────────────────────────────
 
 class StudentCreate(BaseModel):
@@ -327,3 +335,17 @@ class DashboardStats(BaseModel):
 class MessageResponse(BaseModel):
     message: str
     id: Optional[int] = None
+
+# ── Student Subject Enrollment ─────────────────────────────────────────────────
+
+class EnrollSubjectsRequest(BaseModel):
+    subject_ids: list[int]
+
+class StudentSubjectEnrollmentOut(BaseModel):
+    id: int
+    student_id: int
+    subject_id: int
+    subject_name: str
+    enrolled_at: datetime
+
+    model_config = {"from_attributes": True}

@@ -77,6 +77,9 @@ class Subject(Base):
         "TeacherClassAssignment", back_populates="subject"
     )
     modules: Mapped[list["Module"]] = relationship("Module", back_populates="subject")
+    student_enrollments: Mapped[list["StudentSubjectEnrollment"]] = relationship(
+        "StudentSubjectEnrollment", back_populates="subject"
+    )
 
 
 # ── classes ───────────────────────────────────────────────────────────────────
@@ -168,6 +171,9 @@ class Student(Base):
     section_assignments: Mapped[list["StudentSectionAssignment"]] = relationship(
         "StudentSectionAssignment", back_populates="student"
     )
+    subject_enrollments: Mapped[list["StudentSubjectEnrollment"]] = relationship(
+        "StudentSubjectEnrollment", back_populates="student", cascade="all, delete-orphan"
+    )
 
 
 # ── student_section_assignments ───────────────────────────────────────────────
@@ -187,6 +193,25 @@ class StudentSectionAssignment(Base):
 
     student: Mapped["Student"] = relationship("Student", back_populates="section_assignments")
     section: Mapped["Section"] = relationship("Section", back_populates="student_assignments")
+
+
+# ── student_subject_enrollments ───────────────────────────────────────────────
+
+class StudentSubjectEnrollment(Base):
+    __tablename__ = "student_subject_enrollments"
+    __table_args__ = (
+        UniqueConstraint("student_id", "subject_id", name="uq_student_subject"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
+    subject_id: Mapped[int] = mapped_column(ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False)
+    enrolled_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    student: Mapped["Student"] = relationship("Student", back_populates="subject_enrollments")
+    subject: Mapped["Subject"] = relationship("Subject", back_populates="student_enrollments")
 
 
 # ── modules ───────────────────────────────────────────────────────────────────

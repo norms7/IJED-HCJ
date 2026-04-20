@@ -1,6 +1,7 @@
 """
 Teacher Portal endpoints — for logged-in teachers (not admin-only).
 GET  /teacher/me/subjects       → subjects assigned to this teacher
+GET  /teacher/me/class/{class_id}/students → students in a class (NEW)
 GET  /teacher/me/modules        → modules uploaded by this teacher
 POST /teacher/me/modules        → upload a new module (with PDF)
 POST /teacher/me/modules/upload → upload PDF file, returns file_url
@@ -73,6 +74,67 @@ async def get_my_subjects(
                 "schedule": assignment.schedule,
             })
     return subjects
+
+
+# ── GET /teacher/me/class/{class_id}/students (NEW) ──────────────────────────
+
+@router.get("/me/class/{class_id}/students", summary="Get students enrolled in a class")
+async def get_class_students(
+    class_id: int,
+    teacher: Teacher = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Returns all students enrolled in any section that belongs to the given class.
+    The teacher must be assigned to this class (via teacher_class_assignments).
+    """
+    # Verify teacher is assigned to this class
+    from app.models.models import TeacherClassAssignment
+    result = await db.execute(
+        select(TeacherClassAssignment).where(
+            TeacherClassAssignment.teacher_id == teacher.id,
+            TeacherClassAssignment.class_id == class_id,
+        )
+    )
+    assignment = result.scalar_one_or_none()
+    if not assignment:
+        raise HTTPException(status_code=403, detail="You are not assigned to this class")
+
+    # Get all sections belonging to this class
+    from app.models.models import Section, StudentSectionAssignment, Student, User
+    result = await db.execute(
+        select(Section).where(Section.class_id == class_id)
+    )
+    sections = result.scalars().all()
+    section_ids = [s.id for s in sections]
+    if not section_ids:
+        return []  # No sections → no students
+
+    # Get all student-section assignments for these sections, with student and user data
+    result = await db.execute(
+        select(Student)
+        .options(selectinload(Student.user))
+        .join(Student.section_assignments)
+        .where(StudentSectionAssignment.section_id.in_(section_ids))
+        .distinct()
+    )
+    students = result.scalars().all()
+
+    # Build response compatible with frontend (expects user nested object)
+    return [
+        {
+            "id": s.id,
+            "student_number": s.student_number,
+            "user": {
+                "id": s.user.id,
+                "first_name": s.user.first_name,
+                "last_name": s.user.last_name,
+                "email": s.user.email,
+                "is_active": s.user.is_active,
+            }
+        }
+        for s in students
+    ]
 
 
 # ── POST /teacher/me/modules/upload (upload PDF file) ────────────────────────
