@@ -484,7 +484,7 @@ const TeacherView = {
         <div class="module-grid" id="teacher-module-grid"><div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Loading modules…</div></div></div>`;
     }
     const SUBJECT_STYLES = { 'Mathematics': { color: '#8b0020', icon: '➕' }, 'Science': { color: '#2e6b3e', icon: '🔬' }, 'English': { color: '#1a4a8a', icon: '📖' }, 'Filipino': { color: '#c04a00', icon: '🇵🇭' }, 'MAPEH': { color: '#6a0dad', icon: '🎨' } };
-    const API_BASE = 'https://ijed-hcj.onrender.com';
+    const API_BASE = 'https://ijed-hcj-1.onrender.com';
     const cards = apiModules.map(m => {
       const style   = SUBJECT_STYLES[m._subject_name] || { color: 'var(--maroon)', icon: '📚' };
       const hasFile = !!m.file_url;
@@ -684,7 +684,7 @@ const StudentView = {
       return `<div class="section-header"><div class="section-header-left"><h2>Learning Modules</h2><p id="module-count">Loading…</p></div><div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search modules…" /></div></div><div class="module-grid" id="student-module-grid"><div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Loading modules…</div></div></div>`;
     }
     const SUBJECT_STYLES = { 'Mathematics': { color: '#8b0020', icon: '➕' }, 'Science': { color: '#2e6b3e', icon: '🔬' }, 'English': { color: '#1a4a8a', icon: '📖' }, 'Filipino': { color: '#c04a00', icon: '🇵🇭' }, 'MAPEH': { color: '#6a0dad', icon: '🎨' } };
-    const API_BASE = 'https://ijed-hcj.onrender.com';
+    const API_BASE = 'https://ijed-hcj-1.onrender.com';
     const cards = apiModules.map(m => {
       const style = SUBJECT_STYLES[m._subject_name] || { color: 'var(--maroon)', icon: '📚' };
       const termLabel = m.term ? `${m.term} Term` : '';
