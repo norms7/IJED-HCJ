@@ -13,7 +13,7 @@ class LMSAdminAPI {
   /**
    * @param {string} baseURL - e.g. "http://localhost:8000"
    */
-  constructor(baseURL = "http://localhost:8000") {
+  constructor(baseURL = "https://ijed-hcj.onrender.com") {
     this.baseURL = baseURL.replace(/\/$/, "");
     this.token = localStorage.getItem("lms_token") || null;
   }
