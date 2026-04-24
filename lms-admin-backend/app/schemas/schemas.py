@@ -2,11 +2,11 @@
 Pydantic v2 schemas — request bodies, responses, and shared types.
 """
 from __future__ import annotations
-
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List, Any
+from pydantic import BaseModel, Field, field_validator, EmailStr
 
-from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
+import json
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
@@ -349,3 +349,188 @@ class StudentSubjectEnrollmentOut(BaseModel):
     enrolled_at: datetime
 
     model_config = {"from_attributes": True}
+
+# ── Constants ──────────────────────────────────────────────────────────────────
+ 
+VALID_FORMAT_TYPES = {
+    "multiple_choice", "freeform", "checkbox", "enumeration", "assignment", "hybrid"
+}
+ 
+VALID_ACTIVITY_TYPES = {
+    "quiz", "long_quiz", "task_performance", "exam", "lab_exercise", "other", "assignment"
+}
+ 
+VALID_QUESTION_TYPES = {
+    "multiple_choice", "checkbox", "fill_blank", "essay"
+}
+ 
+VALID_GRADING_MODES = {"auto", "manual"}
+ 
+ 
+# ── Choice Schemas ─────────────────────────────────────────────────────────────
+ 
+class ChoiceCreate(BaseModel):
+    choice_text: str = Field(min_length=1)
+    order: int = 0
+ 
+ 
+class ChoiceOut(BaseModel):
+    id: int
+    order: int
+    choice_text: str
+    model_config = {"from_attributes": True}
+ 
+ 
+# ── Question Schemas ───────────────────────────────────────────────────────────
+ 
+class QuestionCreate(BaseModel):
+    question_text: str = Field(min_length=1)
+    question_type: str
+    points: int = Field(default=1, ge=1)
+    order: int = 0
+    correct_answer: Optional[str] = None  # JSON string for arrays, plain string for fill_blank
+    choices: List[ChoiceCreate] = []
+ 
+    @field_validator("question_type")
+    @classmethod
+    def validate_qtype(cls, v: str) -> str:
+        if v not in VALID_QUESTION_TYPES:
+            raise ValueError(f"question_type must be one of {VALID_QUESTION_TYPES}")
+        return v
+ 
+ 
+class QuestionOut(BaseModel):
+    id: int
+    order: int
+    question_text: str
+    question_type: str
+    points: int
+    correct_answer: Optional[str] = None
+    choices: List[ChoiceOut] = []
+    model_config = {"from_attributes": True}
+ 
+ 
+# ── Activity Schemas (extended) ────────────────────────────────────────────────
+ 
+class ActivityCreateV2(BaseModel):
+    title: str = Field(min_length=1, max_length=255)
+    description: Optional[str] = None
+    instructions: Optional[str] = None
+ 
+    activity_type: str = "quiz"
+    activity_type_custom: Optional[str] = None  # only when activity_type == "other"
+ 
+    format_type: str = "multiple_choice"
+    grading_mode: str = "auto"
+ 
+    module_id: int
+    subject_id: Optional[int] = None
+    teacher_id: Optional[int] = None
+ 
+    max_score: Optional[int] = Field(None, ge=0)
+    start_date: Optional[datetime] = None
+    due_date: Optional[datetime] = None
+    is_published: bool = False
+ 
+    questions: List[QuestionCreate] = []
+ 
+    @field_validator("activity_type")
+    @classmethod
+    def validate_atype(cls, v: str) -> str:
+        if v not in VALID_ACTIVITY_TYPES:
+            raise ValueError(f"activity_type must be one of {VALID_ACTIVITY_TYPES}")
+        return v
+ 
+    @field_validator("format_type")
+    @classmethod
+    def validate_ftype(cls, v: str) -> str:
+        if v not in VALID_FORMAT_TYPES:
+            raise ValueError(f"format_type must be one of {VALID_FORMAT_TYPES}")
+        return v
+ 
+    @field_validator("grading_mode")
+    @classmethod
+    def validate_gmode(cls, v: str) -> str:
+        if v not in VALID_GRADING_MODES:
+            raise ValueError(f"grading_mode must be one of {VALID_GRADING_MODES}")
+        return v
+ 
+ 
+class ActivityUpdateV2(BaseModel):
+    title: Optional[str] = Field(None, max_length=255)
+    description: Optional[str] = None
+    instructions: Optional[str] = None
+    activity_type: Optional[str] = None
+    activity_type_custom: Optional[str] = None
+    format_type: Optional[str] = None
+    grading_mode: Optional[str] = None
+    max_score: Optional[int] = Field(None, ge=0)
+    start_date: Optional[datetime] = None
+    due_date: Optional[datetime] = None
+    is_published: Optional[bool] = None
+    questions: Optional[List[QuestionCreate]] = None  # full replace if provided
+ 
+ 
+class ActivityOutV2(BaseModel):
+    id: int
+    title: str
+    description: Optional[str] = None
+    instructions: Optional[str] = None
+    activity_type: str
+    activity_type_custom: Optional[str] = None
+    format_type: str
+    grading_mode: str
+    module_id: int
+    subject_id: Optional[int] = None
+    teacher_id: Optional[int] = None
+    max_score: Optional[int] = None
+    start_date: Optional[datetime] = None
+    due_date: Optional[datetime] = None
+    is_published: bool
+    created_at: datetime
+    questions: List[QuestionOut] = []
+    submission_count: int = 0
+    model_config = {"from_attributes": True}
+ 
+ 
+# ── Submission Schemas ─────────────────────────────────────────────────────────
+ 
+class AnswerSubmit(BaseModel):
+    question_id: int
+    answer_value: Optional[str] = None  # JSON string for arrays
+ 
+ 
+class ActivitySubmitRequest(BaseModel):
+    answers: List[AnswerSubmit]
+ 
+ 
+class AnswerOut(BaseModel):
+    id: int
+    question_id: int
+    answer_value: Optional[str] = None
+    is_correct: Optional[bool] = None
+    points_earned: Optional[int] = None
+    model_config = {"from_attributes": True}
+ 
+ 
+class SubmissionOut(BaseModel):
+    id: int
+    activity_id: int
+    student_id: int
+    student_name: Optional[str] = None   # injected by the endpoint
+    submitted_at: datetime
+    score: Optional[int] = None
+    max_score: Optional[int] = None
+    grade: Optional[str] = None
+    remarks: Optional[str] = None
+    is_graded: bool
+    answers: List[AnswerOut] = []
+    model_config = {"from_attributes": True}
+ 
+ 
+# ── Manual Grading ─────────────────────────────────────────────────────────────
+ 
+class ManualGradeRequest(BaseModel):
+    score: int = Field(ge=0)
+    grade: Optional[str] = None
+    remarks: Optional[str] = None

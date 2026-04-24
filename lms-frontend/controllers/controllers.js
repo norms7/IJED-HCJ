@@ -9,17 +9,19 @@ const api = new LMSAdminAPI("http://localhost:8000");
 
 /* ══════════════════════════════════════════════════════════════
    APP CONTROLLER
-   Global app state: page routing, sidebar, clock.
+   Handles global UI state: page routing, sidebar toggle, clock.
    ══════════════════════════════════════════════════════════════ */
 const App = {
   sidebarCollapsed: false,
 
+  /** Switch between landing, login, and app pages */
   showPage(page) {
     document.getElementById('page-landing').classList.toggle('hidden', page !== 'landing');
     document.getElementById('page-login').classList.toggle('hidden',   page !== 'login');
     document.getElementById('page-app').classList.toggle('hidden',     page !== 'app');
   },
 
+  /** Toggle sidebar collapse (desktop) or slide-out (mobile) */
   toggleSidebar() {
     const sb = document.getElementById('sidebar');
     const ov = document.getElementById('sidebar-overlay');
@@ -32,11 +34,13 @@ const App = {
     }
   },
 
+  /** Update topbar clock every second */
   updateClock() {
     const el = document.getElementById('topbar-time');
     if (el) el.textContent = new Date().toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
   },
 
+  /** Bootstrap the app: dark mode, clock, session restore */
   init() {
     DarkMode.init();
     document.getElementById('sidebar-overlay').addEventListener('click', () => {
@@ -58,10 +62,12 @@ const App = {
 
 /* ══════════════════════════════════════════════════════════════
    AUTH CONTROLLER
+   Handles login, role selection, and logout.
    ══════════════════════════════════════════════════════════════ */
 const AuthController = {
   selectedRole: 'admin',
 
+  /** Switch role tabs and update demo hint */
   selectRole(role) {
     this.selectedRole = role;
     document.querySelectorAll('.role-tab').forEach(t =>
@@ -75,6 +81,7 @@ const AuthController = {
     document.getElementById('demo-hint').innerHTML = hints[role] || '';
   },
 
+  /** Authenticate user via API, validate role, load dashboard */
   async login() {
     const email    = document.getElementById('login-email').value.trim();
     const password = document.getElementById('login-password').value.trim();
@@ -98,6 +105,7 @@ const AuthController = {
     }
   },
 
+  /** Clear session and return to landing page */
   logout() {
     api.logout();
     Storage.remove('ijla_session');
@@ -110,19 +118,19 @@ const AuthController = {
 
 /* ══════════════════════════════════════════════════════════════
    DASHBOARD CONTROLLER
+   Manages sidebar navigation, section routing, and content loading.
    ══════════════════════════════════════════════════════════════ */
 const DashboardController = {
   currentUser:    null,
   currentSection: 'dashboard',
 
+  /** Navigation menus per role (admin, teacher, student) */
   navMenus: {
     admin: [
-      { id: 'dashboard',       icon: '🏠', label: 'Dashboard' },
-      { id: 'manage-users',    icon: '👥', label: 'Manage Users' },
-      { id: 'manage-teachers', icon: '👩‍🏫', label: 'Manage Teachers' },
-      { id: 'manage-students', icon: '🎓', label: 'Manage Students' },
-      { id: 'calendar',        icon: '📅', label: 'Calendar' },
-      { id: 'settings',        icon: '⚙️', label: 'Settings' },
+      { id: 'dashboard',    icon: '🏠', label: 'Dashboard' },
+      { id: 'manage-users', icon: '👥', label: 'Manage Users' },
+      { id: 'calendar',     icon: '📅', label: 'Calendar' },
+      { id: 'settings',     icon: '⚙️', label: 'Settings' },
     ],
     teacher: [
       { id: 'dashboard',   icon: '🏠', label: 'Dashboard' },
@@ -142,6 +150,7 @@ const DashboardController = {
     ],
   },
 
+  /** Initialize dashboard after login: set user info, build sidebar, load default section */
   async load(user) {
     if (user.full_name && !user.name) user.name = user.full_name;
     this.currentUser = user;
@@ -155,6 +164,7 @@ const DashboardController = {
     this.loadSection('dashboard');
   },
 
+  /** Build sidebar navigation links based on user role */
   buildNav(role) {
     const nav   = document.getElementById('sidebar-nav');
     const items = this.navMenus[role] || [];
@@ -167,6 +177,7 @@ const DashboardController = {
         </div>`).join('');
   },
 
+  /** Switch to a named section (dashboard, manage-users, calendar, etc.) */
   loadSection(sectionId) {
     this.currentSection = sectionId;
     document.querySelectorAll('.nav-item').forEach(el =>
@@ -180,6 +191,7 @@ const DashboardController = {
     this._postRender(sectionId);
   },
 
+  /** Return raw HTML for a section (skeleton, no data yet) */
   _render(id) {
     const role = this.currentUser.role;
     const user = this.currentUser;
@@ -191,8 +203,6 @@ const DashboardController = {
     }
     if (role === 'admin') {
       if (id === 'manage-users')    return AdminView.manageUsers();
-      if (id === 'manage-teachers') return AdminView.manageTeachers();
-      if (id === 'manage-students') return AdminView.manageStudents();
       if (id === 'settings')        return AdminView.settings(user);
     }
     if (role === 'teacher') {
@@ -204,12 +214,13 @@ const DashboardController = {
     if (role === 'student') {
       if (id === 'my-subjects') return StudentView.mySubjects();
       if (id === 'modules')     return StudentView.modules(null);
-      if (id === 'activities')  return StudentView.activities(user);
+      if (id === 'activities')  return StudentView.activitiesLoading();
       if (id === 'my-grades')   return StudentView.myGrades(user);
     }
     return `<div class="empty-state"><div class="empty-state-icon">🚧</div><div class="empty-state-title">Section Coming Soon</div></div>`;
   },
 
+  /** After rendering HTML, fetch real data and attach event handlers */
   _postRender(sectionId) {
     // ── Admin Dashboard: load stats from API ─────────────────────────────
     if (sectionId === 'dashboard' && this.currentUser.role === 'admin') {
@@ -304,132 +315,142 @@ const DashboardController = {
       return;
     }
 
-    // MANAGE USERS
-    if (sectionId === 'manage-users') {
-      Promise.all([
-        api.getUsers({ page: 1, page_size: 100 }),
-        api.getTeachers(),
-        api.getStudents(),
-        api.getSections(),
-      ]).then(([usersRes, teachersRes, studentsRes, sectionsRes]) => {
-        const allUsers = usersRes.items || [];
-        const teachers = teachersRes.items || [];
-        const students = studentsRes.items || [];
-        const sections = sectionsRes.items || [];
-
-        const activeUsers = allUsers.filter(u => u.is_active).length;
-        const statsEl = document.getElementById('um-stats');
-        if (statsEl) statsEl.innerHTML = `${activeUsers} active · ${teachers.length} teachers · ${students.length} students`;
-
-        document.getElementById('tab-all-count').textContent = allUsers.length;
-        document.getElementById('tab-teachers-count').textContent = teachers.length;
-        document.getElementById('tab-students-count').textContent = students.length;
-        document.getElementById('tab-sections-count').textContent = sections.length;
-
-        document.getElementById('um-pane-all').innerHTML = AdminView._allUsersPane(allUsers);
-        document.getElementById('um-pane-teachers').innerHTML = AdminView._teachersPane(teachers);
-        document.getElementById('um-pane-students').innerHTML = AdminView._studentsPane(students, sections);
-        document.getElementById('um-pane-sections').innerHTML = AdminView._sectionsPane(sections);
-        document.getElementById('um-pane-audit').innerHTML = AdminView._auditPane();
-
-        // Activate all tab by default
-        ['all','teachers','students','sections','audit'].forEach(t => {
-          const pane = document.getElementById(`um-pane-${t}`);
-          if (pane) pane.style.display = t === 'all' ? '' : 'none';
-          const btn = document.querySelector(`.um-tab[data-tab="${t}"]`);
-          if (btn) btn.classList.toggle('active', t === 'all');
+    // Student Activities
+    if (sectionId === 'activities' && this.currentUser.role === 'student') {
+      StudentController.loadActivities();
+      return;
+    }
+    if (sectionId === 'activities' && this.currentUser.role === 'teacher') {
+      const area = document.getElementById('content-area');
+      area.innerHTML = TeacherView.activities(this.currentUser, null);
+      Promise.all([api.getTeacherActivities(), api.getMySubjects()])
+        .then(([activities, subjects]) => {
+          const subjectMap = {};
+          subjects.forEach(s => { subjectMap[s.subject_id] = s.subject_name; });
+          activities.forEach(a => { a._subject_name = subjectMap[a.subject_id] || 'Unknown'; });
+          area.innerHTML = TeacherView.activities(this.currentUser, activities);
+          this._attachSearch();
+        })
+        .catch(err => {
+          console.error('Activities load error:', err.message);
+          Toast.show('Failed to load activities: ' + err.message, 'error');
         });
-      }).catch(err => {
-        console.error('Failed to load manage users data:', err);
-        Toast.show('Could not load user data from server.', 'error');
-      });
       return;
     }
 
-    // MANAGE TEACHERS
-    if (sectionId === 'manage-teachers') {
-      Promise.all([
-        api.getUsers({ page: 1, page_size: 100 }),
-        api.getTeachers(),
-        api.getStudents(),
-        api.getSections(),
-      ]).then(([usersRes, teachersRes, studentsRes, sectionsRes]) => {
-        const allUsers = usersRes.items || [];
-        const teachers = teachersRes.items || [];
-        const students = studentsRes.items || [];
-        const sections = sectionsRes.items || [];
-
-        const activeUsers = allUsers.filter(u => u.is_active).length;
-        const statsEl = document.getElementById('um-stats');
-        if (statsEl) statsEl.innerHTML = `${activeUsers} active · ${teachers.length} teachers · ${students.length} students`;
-
-        document.getElementById('tab-all-count').textContent = allUsers.length;
-        document.getElementById('tab-teachers-count').textContent = teachers.length;
-        document.getElementById('tab-students-count').textContent = students.length;
-        document.getElementById('tab-sections-count').textContent = sections.length;
-
-        document.getElementById('um-pane-all').innerHTML = AdminView._allUsersPane(allUsers);
-        document.getElementById('um-pane-teachers').innerHTML = AdminView._teachersPane(teachers);
-        document.getElementById('um-pane-students').innerHTML = AdminView._studentsPane(students, sections);
-        document.getElementById('um-pane-sections').innerHTML = AdminView._sectionsPane(sections);
-        document.getElementById('um-pane-audit').innerHTML = AdminView._auditPane();
-
-        // Activate teachers tab
-        ['all','teachers','students','sections','audit'].forEach(t => {
-          const pane = document.getElementById(`um-pane-${t}`);
-          if (pane) pane.style.display = t === 'teachers' ? '' : 'none';
-          const btn = document.querySelector(`.um-tab[data-tab="${t}"]`);
-          if (btn) btn.classList.toggle('active', t === 'teachers');
+    // Teacher Grades
+    if (sectionId === 'grades' && this.currentUser.role === 'teacher') {
+      const area = document.getElementById('content-area');
+      area.innerHTML = TeacherView.grades(this.currentUser);
+      api.getTeacherActivities()
+        .then(async activities => {
+          const allRows = [];
+          for (const act of activities) {
+            try {
+              const subs = await api.getActivitySubmissions(act.id);
+              subs.forEach(s => { s._activity = act; allRows.push(s); });
+            } catch { /* skip failed fetches */ }
+          }
+          const countEl = document.getElementById('grade-count');
+          if (countEl) countEl.textContent = `${allRows.length} submission(s)`;
+          const rows = allRows.map(s => {
+            const pct = s.max_score > 0 ? Math.round((s.score ?? 0) / s.max_score * 100) : null;
+            const gradeClass = pct >= 90 ? 'badge-green' : pct >= 75 ? 'badge-gold' : 'badge-red';
+            const gradeLabel = pct >= 90 ? 'Excellent' : pct >= 75 ? 'Passing' : 'Needs Work';
+            return `<tr data-searchable>
+              <td><strong>Student #${s.student_id}</strong></td>
+              <td class="text-sm">${escHtml(s._activity?.title || '?')}</td>
+              <td><span class="badge badge-maroon" style="font-size:10px">${escHtml(s._activity?.activity_type || '')}</span></td>
+              <td>${s.score !== null && s.score !== undefined ? s.score : '—'}/${s.max_score ?? '—'}</td>
+              <td>${pct !== null ? `<span class="badge ${gradeClass}">${gradeLabel} (${pct}%)</span>` : '<span class="badge badge-gray">Ungraded</span>'}</td>
+              <td class="text-sm text-muted">${escHtml(s.grade || '—')}</td>
+              <td class="text-sm text-muted">${escHtml(s.remarks || '—')}</td>
+              <td class="text-sm text-muted">${s.submitted_at ? new Date(s.submitted_at).toLocaleDateString() : '—'}</td>
+            </tr>`;
+          }).join('') || '<tr><td colspan="8" class="text-center text-muted" style="padding:40px">No submissions yet</td></tr>';
+          const wrap = document.getElementById('grades-table-wrap');
+          if (wrap) wrap.innerHTML = `
+            <div class="card">
+              <div class="table-wrap">
+                <table class="data-table">
+                  <thead><tr><th>Student</th><th>Activity</th><th>Type</th><th>Score</th><th>Performance</th><th>Grade</th><th>Remarks</th><th>Date</th></tr></thead>
+                  <tbody>${rows}</tbody>
+                </table>
+              </div>
+            </div>`;
+          this._attachSearch();
+        })
+        .catch(err => {
+          Toast.show('Failed to load grades: ' + err.message, 'error');
         });
-      }).catch(err => {
-        console.error('Failed to load manage teachers data:', err);
-        Toast.show('Could not load teacher data from server.', 'error');
-      });
       return;
     }
 
-    // MANAGE STUDENTS
-    if (sectionId === 'manage-students') {
-      Promise.all([
-        api.getUsers({ page: 1, page_size: 100 }),
-        api.getTeachers(),
-        api.getStudents(),
-        api.getSections(),
-      ]).then(([usersRes, teachersRes, studentsRes, sectionsRes]) => {
-        const allUsers = usersRes.items || [];
-        const teachers = teachersRes.items || [];
-        const students = studentsRes.items || [];
-        const sections = sectionsRes.items || [];
+    // MANAGE USERS – fetch data and make tabs clickable
+// MANAGE USERS – fetch data and make tabs clickable
+if (sectionId === 'manage-users') {
+  Promise.all([
+    api.getUsers({ page: 1, page_size: 100 }),
+    api.getTeachers(),
+    api.getStudents(),
+    api.getSections(),
+  ]).then(([usersRes, teachersRes, studentsRes, sectionsRes]) => {
+    // Normalize each response (handles both array and { items } format)
+    const allUsers = Array.isArray(usersRes) ? usersRes : (usersRes.items || []);
+    const teachers = Array.isArray(teachersRes) ? teachersRes : (teachersRes.items || []);
+    const students = Array.isArray(studentsRes) ? studentsRes : (studentsRes.items || []);
+    let sections = Array.isArray(sectionsRes) ? sectionsRes : (sectionsRes.items || []);
 
-        const activeUsers = allUsers.filter(u => u.is_active).length;
-        const statsEl = document.getElementById('um-stats');
-        if (statsEl) statsEl.innerHTML = `${activeUsers} active · ${teachers.length} teachers · ${students.length} students`;
+    // DEBUG: log to console to verify
+    console.log('Sections received:', sections);
 
-        document.getElementById('tab-all-count').textContent = allUsers.length;
-        document.getElementById('tab-teachers-count').textContent = teachers.length;
-        document.getElementById('tab-students-count').textContent = students.length;
-        document.getElementById('tab-sections-count').textContent = sections.length;
+    const activeUsers = allUsers.filter(u => u.is_active).length;
+    const statsEl = document.getElementById('um-stats');
+    if (statsEl) statsEl.innerHTML = `${activeUsers} active · ${teachers.length} teachers · ${students.length} students`;
 
-        document.getElementById('um-pane-all').innerHTML = AdminView._allUsersPane(allUsers);
-        document.getElementById('um-pane-teachers').innerHTML = AdminView._teachersPane(teachers);
-        document.getElementById('um-pane-students').innerHTML = AdminView._studentsPane(students, sections);
-        document.getElementById('um-pane-sections').innerHTML = AdminView._sectionsPane(sections);
-        document.getElementById('um-pane-audit').innerHTML = AdminView._auditPane();
+    document.getElementById('tab-all-count').textContent = allUsers.length;
+    document.getElementById('tab-teachers-count').textContent = teachers.length;
+    document.getElementById('tab-students-count').textContent = students.length;
+    document.getElementById('tab-sections-count').textContent = sections.length;
 
-        // Activate students tab
+    document.getElementById('um-pane-all').innerHTML = AdminView._allUsersPane(allUsers);
+    document.getElementById('um-pane-teachers').innerHTML = AdminView._teachersPane(teachers);
+    document.getElementById('um-pane-students').innerHTML = AdminView._studentsPane(students, sections);
+    document.getElementById('um-pane-sections').innerHTML = AdminView._sectionsPane(sections);
+    document.getElementById('um-pane-audit').innerHTML = AdminView._auditPane();
+
+    // Activate "All Users" tab by default
+    ['all','teachers','students','sections','audit'].forEach(t => {
+      const pane = document.getElementById(`um-pane-${t}`);
+      if (pane) pane.style.display = t === 'all' ? '' : 'none';
+      const btn = document.querySelector(`.um-tab[data-tab="${t}"]`);
+      if (btn) btn.classList.toggle('active', t === 'all');
+    });
+
+    // Attach click handlers to tabs
+    document.querySelectorAll('.um-tab').forEach(tab => {
+      tab.removeEventListener('click', tab._handler);
+      const handler = () => {
+        const targetTab = tab.getAttribute('data-tab');
+        if (!targetTab) return;
         ['all','teachers','students','sections','audit'].forEach(t => {
           const pane = document.getElementById(`um-pane-${t}`);
-          if (pane) pane.style.display = t === 'students' ? '' : 'none';
+          if (pane) pane.style.display = t === targetTab ? '' : 'none';
           const btn = document.querySelector(`.um-tab[data-tab="${t}"]`);
-          if (btn) btn.classList.toggle('active', t === 'students');
+          if (btn) btn.classList.toggle('active', t === targetTab);
         });
-      }).catch(err => {
-        console.error('Failed to load manage students data:', err);
-        Toast.show('Could not load student data from server.', 'error');
-      });
-      return;
-    }
+      };
+      tab.addEventListener('click', handler);
+      tab._handler = handler;
+    });
+  }).catch(err => {
+    console.error('Failed to load manage users data:', err);
+    Toast.show('Could not load user data from server.', 'error');
+  });
+  return;
+}
 
+    // Handle legacy pending tab (for manageTeachers/manageStudents redirects)
     if (AdminController._pendingTab) {
       AdminController._switchTab(AdminController._pendingTab);
       AdminController._pendingTab = null;
@@ -438,6 +459,7 @@ const DashboardController = {
     this._attachSearch();
   },
 
+  /** Attach live search to the global search input */
   _attachSearch() {
     const searchInput = document.getElementById('global-search');
     if (searchInput) {
@@ -455,10 +477,12 @@ const DashboardController = {
 
 /* ══════════════════════════════════════════════════════════════
    ADMIN CONTROLLER
+   Handles all admin actions: user CRUD, teacher assignment, sections, enrollments.
    ══════════════════════════════════════════════════════════════ */
 const AdminController = {
   _pendingTab: null,
 
+  /** Switch between tabs in manage-users view (used by legacy redirects) */
   _switchTab(tab) {
     ['all','teachers','students','sections','audit'].forEach(t => {
       const pane = document.getElementById(`um-pane-${t}`);
@@ -468,6 +492,7 @@ const AdminController = {
     });
   },
 
+  /** Filter user table by role (teacher/student) */
   _filterRole(val) {
     document.querySelectorAll('#user-table-body tr[data-searchable]').forEach(r => {
       const role = r.querySelector('.badge')?.textContent?.toLowerCase() || '';
@@ -475,6 +500,7 @@ const AdminController = {
     });
   },
 
+  /** Filter user table by status (active/inactive) */
   _filterStatus(val) {
     document.querySelectorAll('#user-table-body tr[data-searchable]').forEach(r => {
       const status = r.querySelectorAll('.badge')[1]?.textContent?.toLowerCase() || '';
@@ -482,18 +508,21 @@ const AdminController = {
     });
   },
 
+  /** Filter teacher cards by search text */
   _filterCards(q, cls) {
     document.querySelectorAll('.' + cls).forEach(card => {
       card.style.display = card.textContent.toLowerCase().includes(q.toLowerCase()) ? '' : 'none';
     });
   },
 
+  /** Filter student rows by search text */
   _filterStudents(q) {
     document.querySelectorAll('[data-searchable]').forEach(r => {
       r.style.display = r.textContent.toLowerCase().includes(q.toLowerCase()) ? '' : 'none';
     });
   },
 
+  /** Filter sections by section ID (legacy – kept for compatibility) */
   _filterBySection(secId) {
     if (!secId) {
       document.querySelectorAll('.section-block').forEach(b => b.style.display = '');
@@ -509,12 +538,14 @@ const AdminController = {
     });
   },
 
+  /** Filter audit log table by search text */
   _filterTable(q, bodyId) {
     document.querySelectorAll(`#${bodyId} tr`).forEach(r => {
       r.style.display = r.textContent.toLowerCase().includes(q.toLowerCase()) ? '' : 'none';
     });
   },
 
+  /** Open modal to add a new user (teacher/student/admin) with multi-assignment for teachers */
   async openAddUser(preRole = 'student') {
     let subjectOpts = '<option value="">— Loading subjects… —</option>';
     let sectionOpts = '<option value="">— Loading sections… —</option>';
@@ -644,6 +675,7 @@ const AdminController = {
        <button class="btn btn-primary" id="btn-save-user" onclick="AdminController.saveNewUser()">Add User</button>`
     );
 
+    // Initialize dynamic assignment rows for teacher
     setTimeout(() => {
       const container = document.getElementById('teacher-assignments-container');
       const addBtn = document.getElementById('add-assignment-btn');
@@ -692,6 +724,7 @@ const AdminController = {
     }, 50);
   },
 
+  /** Load classes into a dropdown (used when toggling role to teacher) */
   async _loadClassesDropdown(selectId) {
     try {
       const data = await api.getClasses();
@@ -702,6 +735,7 @@ const AdminController = {
     } catch (e) { /* silent */ }
   },
 
+  /** Show/hide teacher/student specific fields based on role selection */
   _toggleRoleFields() {
     const role = document.getElementById('f-role').value;
     document.getElementById('teacher-fields').style.display = role === 'teacher' ? '' : 'none';
@@ -709,6 +743,7 @@ const AdminController = {
     if (role === 'teacher') AdminController._loadClassesDropdown('f-class-id');
   },
 
+  /** Save a new user (create user account + teacher/student profile + assignments) */
   async saveNewUser() {
     const name     = document.getElementById('f-name').value.trim();
     const email    = document.getElementById('f-email').value.trim();
@@ -802,6 +837,7 @@ const AdminController = {
     }
   },
 
+  /** Open modal to edit an existing user (supports both API and legacy localStorage users) */
   async openEditUser(id) {
     const isLegacy = typeof id === 'string' && id.startsWith('u');
     if (isLegacy) {
@@ -915,6 +951,7 @@ const AdminController = {
 
   openEditTeacher(id) { this.openEditUser(id); },
 
+  /** Save changes to an existing user (update user, teacher profile, and assignments) */
   async saveEditUser(id) {
     const isLegacy = typeof id === 'string' && id.startsWith('u');
     if (isLegacy) {
@@ -1021,6 +1058,7 @@ const AdminController = {
     }
   },
 
+  /** Soft-delete a user (set is_active = false) */
   async deleteUser(id) {
     const isLegacy = typeof id === 'string' && id.startsWith('u');
     const label    = isLegacy ? (userModel.getById(id)?.name || id) : `User #${id}`;
@@ -1040,18 +1078,124 @@ const AdminController = {
     }
   },
 
-  viewStudentProfile(id) { /* legacy – kept as is */ },
-
-  openAssignSchedule(teacherId) { /* legacy – kept as is */ },
+  // Legacy methods (kept for compatibility – not used by new UI)
+  viewStudentProfile(id) { /* legacy */ },
+  openAssignSchedule(teacherId) { /* legacy */ },
   saveSchedule(teacherId) { /* legacy */ },
   deleteSchedule(schId, teacherId) { /* legacy */ },
   viewSectionSchedule(sectionId) { /* legacy */ },
-  openAddSection() { /* legacy */ },
-  saveNewSection() { /* legacy */ },
-  openEditSection(id) { /* legacy */ },
-  saveEditSection(id) { /* legacy */ },
-  deleteSection(id) { /* legacy */ },
 
+  /* ── SECTION CRUD (API‑driven) ───────────────────────────────────────── */
+
+  /** Open modal to add a new section */
+  async openAddSection() {
+    let classOpts = '<option value="">Loading classes…</option>';
+    try {
+      const classesRes = await api.getClasses();
+      const classes = classesRes.items || (Array.isArray(classesRes) ? classesRes : []);
+      classOpts = classes.map(c => `<option value="${c.id}">${escHtml(c.name)} (${escHtml(c.grade_level || '')})</option>`).join('');
+      if (!classOpts) classOpts = '<option value="">No classes available</option>';
+    } catch (e) {
+      classOpts = '<option value="">Error loading classes</option>';
+    }
+
+    Modal.show('Add Section', `
+      <div class="form-group">
+        <label class="form-label">Section Name *</label>
+        <input class="form-control" id="new-section-name" placeholder="e.g. Section A" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Class *</label>
+        <select class="form-control" id="new-section-class">${classOpts}</select>
+      </div>`,
+      `<button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
+       <button class="btn btn-primary" onclick="AdminController.saveNewSection()">Add Section</button>`
+    );
+  },
+
+  /** Save a new section via API */
+  async saveNewSection() {
+    const name = document.getElementById('new-section-name').value.trim();
+    const classId = document.getElementById('new-section-class').value;
+    if (!name) { Toast.show('Section name is required.', 'error'); return; }
+    if (!classId) { Toast.show('Please select a class.', 'error'); return; }
+
+    const btn = document.querySelector('#modal-container .btn-primary');
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+    try {
+      await api.createSection({ name, class_id: parseInt(classId) });
+      Modal.close();
+      Toast.show('Section created successfully!', 'success');
+      DashboardController.loadSection('manage-users');
+    } catch (err) {
+      Toast.show(`Error: ${err.message}`, 'error');
+      if (btn) btn.disabled = false;
+    }
+  },
+
+  /** Open modal to edit an existing section */
+  async openEditSection(id) {
+    try {
+      // Fetch section details (requires getSection endpoint in API)
+      const section = await api.getSection(id);
+      const classesRes = await api.getClasses();
+      const classes = classesRes.items || (Array.isArray(classesRes) ? classesRes : []);
+      const classOpts = classes.map(c => `<option value="${c.id}" ${c.id === section.class_id ? 'selected' : ''}>${escHtml(c.name)} (${escHtml(c.grade_level || '')})</option>`).join('');
+
+      Modal.show('Edit Section', `
+        <div class="form-group">
+          <label class="form-label">Section Name *</label>
+          <input class="form-control" id="edit-section-name" value="${escHtml(section.name)}" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Class *</label>
+          <select class="form-control" id="edit-section-class">${classOpts}</select>
+        </div>`,
+        `<button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
+         <button class="btn btn-primary" onclick="AdminController.saveEditSection(${id})">Save Changes</button>`
+      );
+    } catch (err) {
+      Toast.show(`Could not load section: ${err.message}`, 'error');
+    }
+  },
+
+  /** Save edited section via API */
+  async saveEditSection(id) {
+    const name = document.getElementById('edit-section-name').value.trim();
+    const classId = document.getElementById('edit-section-class').value;
+    if (!name) { Toast.show('Section name is required.', 'error'); return; }
+    if (!classId) { Toast.show('Please select a class.', 'error'); return; }
+
+    const btn = document.querySelector('#modal-container .btn-primary');
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+    try {
+      await api.updateSection(id, { name, class_id: parseInt(classId) });
+      Modal.close();
+      Toast.show('Section updated!', 'success');
+      DashboardController.loadSection('manage-users');
+    } catch (err) {
+      Toast.show(`Error: ${err.message}`, 'error');
+      if (btn) btn.disabled = false;
+    }
+  },
+
+  /** Delete a section */
+  async deleteSection(id) {
+    if (!confirm('Delete this section? Students will remain but lose section assignment.')) return;
+    try {
+      await api.deleteSection(id);
+      Toast.show('Section deleted.', 'info');
+      DashboardController.loadSection('manage-users');
+    } catch (err) {
+      Toast.show(`Error: ${err.message}`, 'error');
+    }
+  },
+
+  /* ── STUDENT SUBJECT ENROLLMENT ───────────────────────────────────────── */
+
+  /** Open modal to enroll a student in subjects (multi-select checkboxes) */
   async openEnrollSubjects(studentId, studentName) {
     const existing = document.getElementById('enroll-subjects-modal');
     if (existing) existing.remove();
@@ -1072,6 +1216,7 @@ const AdminController = {
     }
   },
 
+  /** Save subject enrollments for a student */
   async saveEnrollSubjects(studentId) {
     const checkboxes = document.querySelectorAll('#enroll-subjects-modal input[type="checkbox"]');
     const subjectIds = [...checkboxes].filter(c => c.checked).map(c => parseInt(c.value));
@@ -1088,6 +1233,7 @@ const AdminController = {
     }
   },
 
+  // Legacy CSV and settings methods (keep as is)
   exportCSV(type) { /* legacy */ },
   openImportCSV() { /* legacy */ },
   processImportCSV() { /* legacy */ },
@@ -1098,13 +1244,18 @@ const AdminController = {
 
 /* ══════════════════════════════════════════════════════════════
    TEACHER CONTROLLER
+   Handles module and activity management for teachers.
    ══════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════
+   TEACHER CONTROLLER  (full replacement of the existing block)
+   Replace everything from:
+     const TeacherController = {
+   …to the closing };
+   ══════════════════════════════════════════════════════════════ */
+
 const TeacherController = {
-  _getSubjectOptions(selected = '') {
-    return subjectModel.getByTeacher(DashboardController.currentUser.id)
-      .map(s => `<option value="${s.id}" ${s.id === selected ? 'selected' : ''}>${escHtml(s.name)}</option>`)
-      .join('');
-  },
+
+  // ── Module methods (unchanged) ────────────────────────────────────────────
 
   async openAddModule() {
     let subjectOpts = '<option value="">Loading...</option>';
@@ -1119,15 +1270,17 @@ const TeacherController = {
       <div class="form-group"><label>Module Title *</label><input class="form-control" id="m-title" placeholder="e.g. Introduction to Algebra" /></div>
       <div class="form-group"><label>Subject *</label><select class="form-control" id="m-subject">${subjectOpts}</select></div>
       <div class="form-group"><label>Description</label><textarea class="form-control" id="m-desc" placeholder="Brief description of the module…"></textarea></div>
-      <div class="form-row"><div class="form-group"><label>Term</label><select class="form-control" id="m-term"><option value="">— Select Term —</option><option value="1st">1st Term</option><option value="2nd">2nd Term</option><option value="3rd">3rd Term</option><option value="4th">4th Term</option></select></div><div class="form-group"><label>PDF File</label><input class="form-control" id="m-file" type="file" accept=".pdf" /><div id="m-file-status" style="font-size:12px;margin-top:4px;color:var(--gray-400)">No file selected</div></div></div>`,
+      <div class="form-row">
+        <div class="form-group"><label>Term</label><select class="form-control" id="m-term"><option value="">— Select Term —</option><option value="1st">1st Term</option><option value="2nd">2nd Term</option><option value="3rd">3rd Term</option><option value="4th">4th Term</option></select></div>
+        <div class="form-group"><label>PDF File</label><input class="form-control" id="m-file" type="file" accept=".pdf" /><div id="m-file-status" style="font-size:12px;margin-top:4px;color:var(--gray-400)">No file selected</div></div>
+      </div>`,
       `<button class="btn btn-ghost" onclick="Modal.close()">Cancel</button><button class="btn btn-primary" onclick="TeacherController.saveModule()">Upload Module</button>`
     );
     if (window._selectedSubjectId) {
-      setTimeout(() => { const select = document.getElementById('m-subject'); if (select) select.value = window._selectedSubjectId; delete window._selectedSubjectId; }, 100);
+      setTimeout(() => { const s = document.getElementById('m-subject'); if (s) s.value = window._selectedSubjectId; delete window._selectedSubjectId; }, 100);
     }
-    document.getElementById('m-file').addEventListener('change', function() {
-      const status = document.getElementById('m-file-status');
-      status.textContent = this.files[0] ? `Selected: ${this.files[0].name}` : 'No file selected';
+    document.getElementById('m-file').addEventListener('change', function () {
+      document.getElementById('m-file-status').textContent = this.files[0] ? `Selected: ${this.files[0].name}` : 'No file selected';
     });
   },
 
@@ -1146,7 +1299,7 @@ const TeacherController = {
       if (file) {
         Toast.show('Uploading PDF…', 'info');
         const uploaded = await api.uploadModuleFile(file);
-        file_url = uploaded.file_url;
+        file_url  = uploaded.file_url;
         file_name = uploaded.file_name;
       }
       await api.createMyModule({ title, subject_id: parseInt(subject), description: document.getElementById('m-desc').value.trim(), term: term || null, file_url, file_name, is_published: true });
@@ -1159,8 +1312,9 @@ const TeacherController = {
     }
   },
 
-  openEditModule(id) { /* legacy */ },
-  updateModule(id) { /* legacy */ },
+  openEditModule(id) { /* TODO */ },
+  updateModule(id)   { /* TODO */ },
+
   async deleteModule(id) {
     if (!confirm('Delete this module? This cannot be undone.')) return;
     try {
@@ -1171,13 +1325,11 @@ const TeacherController = {
       Toast.show(err.message || 'Failed to delete module.', 'error');
     }
   },
-  openAddActivity() { /* legacy */ },
-  saveActivity() { /* legacy */ },
-  openEditActivity(id) { /* legacy */ },
-  updateActivity(id) { /* legacy */ },
-  deleteActivity(id) { /* legacy */ },
-  openGradeActivity(actId) { /* legacy */ },
-  saveGrades(actId) { /* legacy */ },
+
+  openAddModuleForSubject(subjectId, classId) {
+    window._selectedSubjectId = subjectId;
+    this.openAddModule();
+  },
 
   async viewStudentsForSubject(subjectId, classId, subjectName) {
     Modal.show(`Students – ${escHtml(subjectName)}`, '<div class="text-center">Loading students…</div>', '');
@@ -1187,25 +1339,691 @@ const TeacherController = {
         Modal.show(`Students – ${escHtml(subjectName)}`, '<div class="text-muted">No students enrolled in this class.</div>', '<button class="btn btn-ghost" onclick="Modal.close()">Close</button>');
         return;
       }
-      const studentList = students.map(s => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #eee"><div><strong>${escHtml(s.user?.first_name + ' ' + s.user?.last_name || s.name)}</strong><br><span class="text-sm">${escHtml(s.user?.email || s.email)}</span></div><div><span class="badge ${s.user?.is_active ? 'badge-green' : 'badge-red'}">${s.user?.is_active ? 'Active' : 'Inactive'}</span></div></div>`).join('');
-      Modal.show(`Students – ${escHtml(subjectName)}`, `<div class="student-list">${studentList}</div>`, '<button class="btn btn-ghost" onclick="Modal.close()">Close</button>');
+      const list = students.map(s => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #eee">
+          <div><strong>${escHtml((s.user?.first_name || '') + ' ' + (s.user?.last_name || ''))}</strong><br><span class="text-sm">${escHtml(s.user?.email || '')}</span></div>
+          <span class="badge ${s.user?.is_active ? 'badge-green' : 'badge-red'}">${s.user?.is_active ? 'Active' : 'Inactive'}</span>
+        </div>`).join('');
+      Modal.show(`Students – ${escHtml(subjectName)}`, `<div>${list}</div>`, '<button class="btn btn-ghost" onclick="Modal.close()">Close</button>');
     } catch (err) {
       Modal.show(`Students – ${escHtml(subjectName)}`, `<div class="text-danger">Could not load students: ${err.message}</div>`, '<button class="btn btn-ghost" onclick="Modal.close()">Close</button>');
     }
   },
 
-  openAddModuleForSubject(subjectId, classId) {
-    window._selectedSubjectId = subjectId;
-    this.openAddModule();
-  },
-};
+  // ── Activity helpers ──────────────────────────────────────────────────────
 
+  _ACTIVITY_TYPES: [
+    { value: 'quiz',             label: 'Quiz' },
+    { value: 'long_quiz',        label: 'Long Quiz' },
+    { value: 'task_performance', label: 'Task Performance' },
+    { value: 'exam',             label: 'Exam' },
+    { value: 'lab_exercise',     label: 'Laboratory Exercise' },
+    { value: 'assignment',       label: 'Assignment / Homework' },
+    { value: 'other',            label: 'Other (specify)' },
+  ],
+
+  _FORMAT_TYPES: [
+    { value: 'multiple_choice', label: '🔘 Multiple Choice', grading: 'auto' },
+    { value: 'checkbox',        label: '☑️  Checkbox (multi-select)', grading: 'auto' },
+    { value: 'enumeration',     label: '📝 Fill in the Blank / Enumeration', grading: 'auto' },
+    { value: 'freeform',        label: '✍️  Freeform / Essay', grading: 'manual' },
+    { value: 'assignment',      label: '📋 Assignment / Homework', grading: 'manual' },
+    { value: 'hybrid',          label: '🔀 Hybrid (mixed types)', grading: 'manual' },
+  ],
+
+  /** Questions array held in memory while the modal is open */
+  _questions: [],
+
+  _gradingBadge(mode) {
+    return mode === 'auto'
+      ? `<span class="badge badge-green" title="System will auto-check answers">⚡ Auto-graded</span>`
+      : `<span class="badge badge-gold" title="You will manually enter grades">✏️ Manual grading</span>`;
+  },
+
+  // ── CREATE ACTIVITY MODAL ─────────────────────────────────────────────────
+
+  async openAddActivity(presetSubjectId = null) {
+    this._questions = [];
+
+    let subjectOpts = '<option value="">Loading...</option>';
+    let moduleMap   = {};  // subject_id → [modules]
+
+    try {
+      const [subjects, modules] = await Promise.all([
+        api.getMySubjects(),
+        api.getMyModules(),
+      ]);
+      if (!subjects.length) subjectOpts = '<option value="">No subjects assigned</option>';
+      else subjectOpts = subjects.map(s =>
+        `<option value="${s.subject_id}" ${s.subject_id === presetSubjectId ? 'selected' : ''}>${escHtml(s.subject_name)} — ${escHtml(s.class_name)}</option>`
+      ).join('');
+
+      modules.forEach(m => {
+        if (!moduleMap[m.subject_id]) moduleMap[m.subject_id] = [];
+        moduleMap[m.subject_id].push(m);
+      });
+      window._activityModuleMap = moduleMap;
+    } catch (err) {
+      subjectOpts = '<option value="">Failed to load subjects</option>';
+    }
+
+    const typeOpts   = this._ACTIVITY_TYPES.map(t => `<option value="${t.value}">${t.label}</option>`).join('');
+    const formatOpts = this._FORMAT_TYPES.map(f => `<option value="${f.value}">${f.label}</option>`).join('');
+
+    Modal.show('Create Activity', `
+      <div style="max-height:70vh;overflow-y:auto;padding-right:4px">
+
+        <div class="form-row">
+          <div class="form-group" style="flex:2">
+            <label>Activity Title *</label>
+            <input class="form-control" id="act-title" placeholder="e.g. Quiz 1 – Fractions" />
+          </div>
+          <div class="form-group" style="flex:1">
+            <label>Subject *</label>
+            <select class="form-control" id="act-subject" onchange="TeacherController._onSubjectChange(this.value)">${subjectOpts}</select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Module *</label>
+          <select class="form-control" id="act-module"><option value="">— Select subject first —</option></select>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Activity Type</label>
+            <select class="form-control" id="act-type" onchange="TeacherController._onTypeChange(this.value)">${typeOpts}</select>
+          </div>
+          <div class="form-group" id="act-custom-wrap" style="display:none">
+            <label>Specify Type</label>
+            <input class="form-control" id="act-type-custom" placeholder="e.g. Performance Task" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Question Format</label>
+          <select class="form-control" id="act-format" onchange="TeacherController._onFormatChange(this.value)">${formatOpts}</select>
+          <div id="act-grading-badge" style="margin-top:6px">${this._gradingBadge('auto')}</div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Start Date / Time</label>
+            <input class="form-control" id="act-start" type="datetime-local" />
+          </div>
+          <div class="form-group">
+            <label>Due Date / Time</label>
+            <input class="form-control" id="act-due" type="datetime-local" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Instructions to Students</label>
+          <textarea class="form-control" id="act-instructions" rows="3" placeholder="Write any special instructions, reminders, or rules for this activity…"></textarea>
+        </div>
+
+        <!-- Questions section (hidden for assignment/freeform initially) -->
+        <div id="act-questions-section">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px">
+            <strong>Questions</strong>
+            <button class="btn btn-xs btn-outline" onclick="TeacherController._addQuestion()">➕ Add Question</button>
+          </div>
+          <div id="act-questions-list">
+            <div class="text-muted text-sm" style="padding:12px 0">No questions yet. Click "Add Question" to start.</div>
+          </div>
+        </div>
+
+      </div>`,
+      `<button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
+       <button class="btn btn-primary" onclick="TeacherController.saveActivity()">💾 Save Activity</button>`
+    );
+
+    // Trigger initial state
+    setTimeout(() => {
+      const subjectSel = document.getElementById('act-subject');
+      if (subjectSel && subjectSel.value) this._onSubjectChange(subjectSel.value);
+      this._onFormatChange(document.getElementById('act-format')?.value || 'multiple_choice');
+    }, 80);
+  },
+
+  _onSubjectChange(subjectId) {
+    const moduleMap  = window._activityModuleMap || {};
+    const modules    = moduleMap[parseInt(subjectId)] || [];
+    const moduleSel  = document.getElementById('act-module');
+    if (!moduleSel) return;
+    if (!modules.length) {
+      moduleSel.innerHTML = '<option value="">No modules for this subject</option>';
+    } else {
+      moduleSel.innerHTML = modules.map(m => `<option value="${m.id}">${escHtml(m.title)}</option>`).join('');
+    }
+  },
+
+  _onTypeChange(val) {
+    const wrap = document.getElementById('act-custom-wrap');
+    if (wrap) wrap.style.display = val === 'other' ? '' : 'none';
+  },
+
+  _onFormatChange(val) {
+    const fmt        = this._FORMAT_TYPES.find(f => f.value === val);
+    const badgeEl    = document.getElementById('act-grading-badge');
+    const qSection   = document.getElementById('act-questions-section');
+    if (badgeEl)  badgeEl.innerHTML = this._gradingBadge(fmt?.grading || 'auto');
+
+    // Hide questions section for pure assignment/freeform
+    const hideQ = val === 'assignment' || val === 'freeform';
+    if (qSection) qSection.style.display = hideQ ? 'none' : '';
+  },
+
+  // ── Question builder ──────────────────────────────────────────────────────
+
+  _addQuestion() {
+    const format = document.getElementById('act-format')?.value || 'multiple_choice';
+    const defaultType = {
+      multiple_choice: 'multiple_choice',
+      checkbox:        'checkbox',
+      enumeration:     'fill_blank',
+      hybrid:          'multiple_choice',
+    }[format] || 'multiple_choice';
+
+    const idx = this._questions.length;
+    this._questions.push({ id: `q${idx}`, type: defaultType, text: '', points: 1, correct: null, choices: [] });
+
+    if (defaultType === 'multiple_choice' || defaultType === 'checkbox') {
+      // Pre-populate 4 blank choices
+      this._questions[idx].choices = ['', '', '', ''].map((_, i) => ({ id: `c${idx}_${i}`, text: '' }));
+    }
+
+    this._renderQuestions();
+  },
+
+  _removeQuestion(idx) {
+    this._questions.splice(idx, 1);
+    this._renderQuestions();
+  },
+
+  _renderQuestions() {
+    const container = document.getElementById('act-questions-list');
+    if (!container) return;
+
+    if (!this._questions.length) {
+      container.innerHTML = '<div class="text-muted text-sm" style="padding:12px 0">No questions yet.</div>';
+      return;
+    }
+
+    container.innerHTML = this._questions.map((q, idx) => {
+      const typeOpts = [
+        { v: 'multiple_choice', l: '🔘 Multiple Choice' },
+        { v: 'checkbox',        l: '☑️  Checkbox' },
+        { v: 'fill_blank',      l: '📝 Fill in the Blank' },
+        { v: 'essay',           l: '✍️  Essay' },
+      ].map(t => `<option value="${t.v}" ${q.type === t.v ? 'selected' : ''}>${t.l}</option>`).join('');
+
+      const choicesHtml = this._renderChoicesEditor(q, idx);
+
+      return `
+        <div class="activity-question-builder" data-q="${idx}" style="border:1px solid var(--gray-200);border-radius:8px;padding:12px;margin-bottom:10px;background:var(--gray-50)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <strong style="font-size:13px">Q${idx + 1}</strong>
+            <div style="display:flex;gap:6px;align-items:center">
+              <label style="font-size:12px;margin:0">Pts:</label>
+              <input type="number" min="1" value="${q.points}" style="width:52px" class="form-control form-control-sm" onchange="TeacherController._qSetPoints(${idx}, this.value)" />
+              <button class="btn btn-xs btn-danger" onclick="TeacherController._removeQuestion(${idx})">🗑️</button>
+            </div>
+          </div>
+
+          <div class="form-row" style="margin-bottom:8px">
+            <div class="form-group" style="flex:2;margin-bottom:0">
+              <input class="form-control" placeholder="Question text *" value="${escHtml(q.text)}"
+                onchange="TeacherController._qSetText(${idx}, this.value)" />
+            </div>
+            <div class="form-group" style="flex:1;margin-bottom:0">
+              <select class="form-control" onchange="TeacherController._qSetType(${idx}, this.value)">${typeOpts}</select>
+            </div>
+          </div>
+
+          ${choicesHtml}
+        </div>`;
+    }).join('');
+  },
+
+  _renderChoicesEditor(q, idx) {
+    if (q.type === 'multiple_choice') {
+      const choices = q.choices.length ? q.choices : [{ id: 'c0', text: '' }, { id: 'c1', text: '' }, { id: 'c2', text: '' }, { id: 'c3', text: '' }];
+      const rows = choices.map((c, ci) => `
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <input type="radio" name="correct_${idx}" value="${ci}" ${String(q.correct) === String(ci) ? 'checked' : ''}
+            onchange="TeacherController._qSetCorrect(${idx}, '${ci}')" title="Mark as correct" />
+          <input class="form-control form-control-sm" placeholder="Choice ${ci + 1}" value="${escHtml(c.text)}"
+            onchange="TeacherController._qSetChoice(${idx}, ${ci}, this.value)" style="flex:1" />
+          ${choices.length > 2 ? `<button class="btn btn-xs btn-ghost" onclick="TeacherController._qRemoveChoice(${idx}, ${ci})">✕</button>` : ''}
+        </div>`).join('');
+      return `
+        <div style="margin-top:8px">
+          <div style="font-size:12px;color:var(--gray-500);margin-bottom:4px">Choices (select the correct one ◉)</div>
+          ${rows}
+          <button class="btn btn-xs btn-outline" onclick="TeacherController._qAddChoice(${idx})" style="margin-top:4px">➕ Add Choice</button>
+        </div>`;
+    }
+
+    if (q.type === 'checkbox') {
+      const choices = q.choices.length ? q.choices : [{ id: 'c0', text: '' }, { id: 'c1', text: '' }];
+      let correctSet = [];
+      try { correctSet = JSON.parse(q.correct || '[]'); } catch { correctSet = []; }
+      const rows = choices.map((c, ci) => `
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <input type="checkbox" ${correctSet.includes(ci) ? 'checked' : ''}
+            onchange="TeacherController._qToggleCheckbox(${idx}, ${ci}, this.checked)" title="Mark as correct" />
+          <input class="form-control form-control-sm" placeholder="Choice ${ci + 1}" value="${escHtml(c.text)}"
+            onchange="TeacherController._qSetChoice(${idx}, ${ci}, this.value)" style="flex:1" />
+          ${choices.length > 2 ? `<button class="btn btn-xs btn-ghost" onclick="TeacherController._qRemoveChoice(${idx}, ${ci})">✕</button>` : ''}
+        </div>`).join('');
+      return `
+        <div style="margin-top:8px">
+          <div style="font-size:12px;color:var(--gray-500);margin-bottom:4px">Choices (check all correct answers ☑)</div>
+          ${rows}
+          <button class="btn btn-xs btn-outline" onclick="TeacherController._qAddChoice(${idx})" style="margin-top:4px">➕ Add Choice</button>
+        </div>`;
+    }
+
+    if (q.type === 'fill_blank') {
+      return `
+        <div style="margin-top:8px">
+          <label style="font-size:12px;color:var(--gray-500)">Expected Answer (exact text match, case-insensitive)</label>
+          <input class="form-control form-control-sm" placeholder="e.g. Photosynthesis" value="${escHtml(q.correct || '')}"
+            onchange="TeacherController._qSetCorrect(${idx}, this.value)" />
+        </div>`;
+    }
+
+    // essay
+    return `<div style="font-size:12px;color:var(--gray-400);margin-top:8px;padding:6px;background:var(--gray-100);border-radius:4px">📝 Essay — teacher grades manually after submission.</div>`;
+  },
+
+  // ── Question mutation helpers ──────────────────────────────────────────────
+
+  _qSetText(idx, val) { this._questions[idx].text = val; },
+  _qSetPoints(idx, val) { this._questions[idx].points = parseInt(val) || 1; },
+
+  _qSetType(idx, val) {
+    this._questions[idx].type    = val;
+    this._questions[idx].correct = null;
+    if (val === 'multiple_choice' || val === 'checkbox') {
+      if (!this._questions[idx].choices.length)
+        this._questions[idx].choices = [{ id: 'c0', text: '' }, { id: 'c1', text: '' }];
+    } else {
+      this._questions[idx].choices = [];
+    }
+    this._renderQuestions();
+  },
+
+  _qSetCorrect(idx, val) { this._questions[idx].correct = val; },
+
+  _qToggleCheckbox(idx, ci, checked) {
+    let current = [];
+    try { current = JSON.parse(this._questions[idx].correct || '[]'); } catch { current = []; }
+    if (checked && !current.includes(ci)) current.push(ci);
+    if (!checked) current = current.filter(x => x !== ci);
+    this._questions[idx].correct = JSON.stringify(current.sort());
+  },
+
+  _qSetChoice(idx, ci, val) {
+    if (!this._questions[idx].choices[ci]) this._questions[idx].choices[ci] = { id: `c${ci}`, text: '' };
+    this._questions[idx].choices[ci].text = val;
+  },
+
+  _qAddChoice(idx) {
+    const ci = this._questions[idx].choices.length;
+    this._questions[idx].choices.push({ id: `c${ci}`, text: '' });
+    this._renderQuestions();
+  },
+
+  _qRemoveChoice(idx, ci) {
+    this._questions[idx].choices.splice(ci, 1);
+    this._renderQuestions();
+  },
+
+  // ── Save Activity ─────────────────────────────────────────────────────────
+
+  async saveActivity() {
+    const title       = document.getElementById('act-title')?.value.trim();
+    const subjectId   = parseInt(document.getElementById('act-subject')?.value);
+    const moduleId    = parseInt(document.getElementById('act-module')?.value);
+    const actType     = document.getElementById('act-type')?.value;
+    const actCustom   = document.getElementById('act-type-custom')?.value.trim();
+    const format      = document.getElementById('act-format')?.value;
+    const startRaw    = document.getElementById('act-start')?.value;
+    const dueRaw      = document.getElementById('act-due')?.value;
+    const instructions = document.getElementById('act-instructions')?.value.trim();
+
+    if (!title)    { Toast.show('Activity title is required.', 'error'); return; }
+    if (!subjectId){ Toast.show('Please select a subject.', 'error'); return; }
+    if (!moduleId) { Toast.show('Please select a module.', 'error'); return; }
+
+    // Validate questions for structured formats
+    const needsQuestions = !['assignment', 'freeform'].includes(format);
+    if (needsQuestions && !this._questions.length) {
+      Toast.show('Please add at least one question.', 'error'); return;
+    }
+    for (const [i, q] of this._questions.entries()) {
+      if (!q.text.trim()) { Toast.show(`Question ${i + 1} is missing question text.`, 'error'); return; }
+      if ((q.type === 'multiple_choice' || q.type === 'checkbox') && q.choices.filter(c => c.text.trim()).length < 2) {
+        Toast.show(`Question ${i + 1} needs at least 2 choices.`, 'error'); return;
+      }
+      if (q.type === 'multiple_choice' && (q.correct === null || q.correct === '')) {
+        Toast.show(`Question ${i + 1}: please select the correct answer.`, 'error'); return;
+      }
+    }
+
+    const fmt = this._FORMAT_TYPES.find(f => f.value === format);
+    const gradingMode = fmt?.grading || 'auto';
+
+    const questions = this._questions.map((q, i) => ({
+      order:          i,
+      question_text:  q.text.trim(),
+      question_type:  q.type,
+      points:         q.points,
+      correct_answer: q.correct !== null ? String(q.correct) : null,
+      choices:        q.choices.map((c, ci) => ({ order: ci, choice_text: c.text.trim() })).filter(c => c.choice_text),
+    }));
+
+    const max_score = questions.reduce((s, q) => s + q.points, 0) || null;
+
+    const payload = {
+      title,
+      subject_id:           subjectId,
+      module_id:            moduleId,
+      activity_type:        actType,
+      activity_type_custom: actType === 'other' ? actCustom : null,
+      format_type:          format,
+      grading_mode:         gradingMode,
+      instructions:         instructions || null,
+      start_date:           startRaw ? new Date(startRaw).toISOString() : null,
+      due_date:             dueRaw   ? new Date(dueRaw).toISOString()   : null,
+      max_score,
+      is_published:         true,
+      questions,
+    };
+
+    const btn = document.querySelector('#modal-container .btn-primary');
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+    try {
+      await api.createTeacherActivity(payload);
+      Modal.close();
+      Toast.show('Activity created successfully!', 'success');
+      DashboardController.loadSection('activities');
+    } catch (err) {
+      if (btn) { btn.disabled = false; btn.textContent = '💾 Save Activity'; }
+      Toast.show(err.message || 'Failed to create activity.', 'error');
+    }
+  },
+
+  // ── Delete Activity ───────────────────────────────────────────────────────
+
+  async deleteActivity(id) {
+    if (!confirm('Delete this activity and all its submissions? This cannot be undone.')) return;
+    try {
+      await api.deleteTeacherActivity(id);
+      Toast.show('Activity deleted.', 'info');
+      DashboardController.loadSection('activities');
+    } catch (err) {
+      Toast.show(err.message || 'Failed to delete activity.', 'error');
+    }
+  },
+
+  // ── Grade Submissions Modal ───────────────────────────────────────────────
+
+  async openGradeActivity(activityId) {
+    Modal.show('📊 Submissions', '<div class="text-center">Loading submissions…</div>', '', { wide: true });
+    try {
+      const [activity, submissions] = await Promise.all([
+        api.getTeacherActivity(activityId),
+        api.getActivitySubmissions(activityId),
+      ]);
+
+      if (!submissions.length) {
+        Modal.show('📊 Submissions', `<div class="empty-state" style="padding:24px 0"><div class="empty-state-icon">📭</div><div class="empty-state-title">No submissions yet</div></div>`, '<button class="btn btn-ghost" onclick="Modal.close()">Close</button>', { wide: true });
+        return;
+      }
+
+      /** Grade conversion table (matches school grading scale) */
+      const computeGrade = (pct) => {
+        if (pct >= 100) return '1.00';
+        if (pct >= 97)  return '1.25';
+        if (pct >= 94)  return '1.50';
+        if (pct >= 91)  return '1.75';
+        if (pct >= 88)  return '2.00';
+        if (pct >= 85)  return '2.25';
+        if (pct >= 82)  return '2.50';
+        if (pct >= 79)  return '2.75';
+        if (pct >= 75)  return '3.00';
+        return '5.00';
+      };
+
+      const isManual = activity.grading_mode === 'manual';
+      const rows = submissions.map(s => {
+        const studentLabel = s.student_name ? escHtml(s.student_name) : `Student #${s.student_id}`;
+        const submittedAt  = s.submitted_at ? new Date(s.submitted_at).toLocaleDateString() : '—';
+
+        let scoreCell = '— Pending —';
+        let pctCell   = '—';
+        let gradeCell = '—';
+
+        if (s.is_graded && s.score != null && activity.max_score) {
+          const pct = Math.round(s.score / activity.max_score * 100);
+          scoreCell = `${s.score}/${activity.max_score}`;
+          pctCell   = `${pct}%`;
+          const grade = s.grade || computeGrade(pct);
+          const remarksCls = parseFloat(grade) <= 3.00 ? 'badge-green' : 'badge-danger';
+          gradeCell = `<span class="badge ${remarksCls}">${escHtml(grade)}</span>`;
+        } else if (s.is_graded) {
+          scoreCell = s.score != null ? `${s.score}/${activity.max_score ?? '—'}` : '—';
+          gradeCell = s.grade ? `<span class="badge badge-green">${escHtml(s.grade)}</span>` : '—';
+        }
+
+        const gradeBtn = isManual && !s.is_graded
+          ? `<button class="btn btn-xs btn-primary" onclick="TeacherController.openManualGrade(${activity.id}, ${s.id}, ${activity.max_score || 100})">✏️ Grade</button>`
+          : (s.is_graded ? `<span class="badge badge-green">✓ Graded</span>` : `<span class="badge badge-gray">Auto</span>`);
+
+        return `
+          <tr data-searchable>
+            <td><strong>${studentLabel}</strong></td>
+            <td>${submittedAt}</td>
+            <td>${scoreCell}</td>
+            <td>${pctCell}</td>
+            <td>${gradeCell}</td>
+            <td>${gradeBtn}</td>
+          </tr>`;
+      }).join('');
+
+      Modal.show(`📊 ${escHtml(activity.title)} — Submissions`,
+        `<div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Student</th><th>Submitted</th><th>Score</th><th>Percentage</th><th>Grade</th><th>Action</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`,
+        `<button class="btn btn-ghost" onclick="Modal.close()">Close</button>`,
+        { wide: true }
+      );
+    } catch (err) {
+      Modal.show('📊 Submissions', `<div class="text-danger">Error: ${err.message}</div>`, '<button class="btn btn-ghost" onclick="Modal.close()">Close</button>', { wide: true });
+    }
+  },
+
+  // ── Manual Grade Modal ────────────────────────────────────────────────────
+
+  openManualGrade(activityId, submissionId, maxScore) {
+    Modal.show('✏️ Enter Grade',
+      `<div class="form-group">
+        <label>Score <span class="text-muted">/ ${maxScore}</span></label>
+        <input class="form-control" id="mg-score" type="number" min="0" max="${maxScore}" placeholder="0–${maxScore}" />
+      </div>
+      <div class="form-group">
+        <label>Letter Grade <span class="text-muted">(optional)</span></label>
+        <select class="form-control" id="mg-grade">
+          <option value="">— Select —</option>
+          <option value="A">A</option><option value="B">B</option><option value="C">C</option>
+          <option value="D">D</option><option value="F">F</option>
+          <option value="Excellent">Excellent</option><option value="Very Good">Very Good</option>
+          <option value="Good">Good</option><option value="Fair">Fair</option><option value="Needs Improvement">Needs Improvement</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Remarks <span class="text-muted">(optional)</span></label>
+        <textarea class="form-control" id="mg-remarks" rows="2" placeholder="e.g. Good effort! Work on your enumeration."></textarea>
+      </div>`,
+      `<button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>
+       <button class="btn btn-primary" onclick="TeacherController.submitManualGrade(${activityId}, ${submissionId})">Submit Grade</button>`
+    );
+  },
+
+  async submitManualGrade(activityId, submissionId) {
+    const score   = parseInt(document.getElementById('mg-score')?.value);
+    const grade   = document.getElementById('mg-grade')?.value || null;
+    const remarks = document.getElementById('mg-remarks')?.value.trim() || null;
+
+    if (isNaN(score) || score < 0) { Toast.show('Please enter a valid score.', 'error'); return; }
+
+    const btn = document.querySelector('#modal-container .btn-primary');
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+    try {
+      await api.manualGradeSubmission(activityId, submissionId, { score, grade, remarks });
+      Modal.close();
+      Toast.show('Grade saved!', 'success');
+    } catch (err) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Submit Grade'; }
+      Toast.show(err.message || 'Failed to save grade.', 'error');
+    }
+  },
+
+  // ── Legacy stubs (kept to avoid any lingering references) ─────────────────
+  openEditActivity(id) { /* TODO: implement edit */ },
+  updateActivity(id)   { /* TODO: implement edit */ },
+  saveGrades(actId)    { /* legacy */ },
+};
 /* ══════════════════════════════════════════════════════════════
-   STUDENT CONTROLLER (unchanged)
+   STUDENT CONTROLLER (legacy – kept for compatibility)
    ══════════════════════════════════════════════════════════════ */
 const StudentController = {
-  submitActivity(actId) { /* legacy */ },
-  confirmSubmit(actId) { /* legacy */ },
+  _currentActivity: null,   // activity detail object (with questions)
+
+  // ── Load & display the activity list ──────────────────────────────────────
+  loadActivities() {
+    const area = document.getElementById('content-area');
+    area.innerHTML = StudentView.activitiesLoading();
+    api.getStudentActivities()
+      .then(activities => {
+        area.innerHTML = StudentView.activities(activities);
+        DashboardController._attachSearch();
+      })
+      .catch(err => {
+        Toast.show('Failed to load activities: ' + err.message, 'error');
+        area.innerHTML = StudentView.activities([]);
+      });
+  },
+
+  // ── Filter activities by search text ─────────────────────────────────────
+  _filterActivities(text) {
+    const q = text.trim().toLowerCase();
+    document.querySelectorAll('#student-activity-list tr[data-searchable]').forEach(row => {
+      row.style.display = q && !row.textContent.toLowerCase().includes(q) ? 'none' : 'table-row';
+    });
+  },
+
+  // ── Open activity answering screen ────────────────────────────────────────
+  async openActivity(activityId) {
+    const area = document.getElementById('content-area');
+    area.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Loading activity…</div></div>`;
+    try {
+      const activity = await api.getStudentActivity(activityId);
+
+      if (activity.is_past_due) {
+        Toast.show('This activity is past due. No late submissions.', 'error');
+        this.loadActivities();
+        return;
+      }
+      if (!activity.can_answer) {
+        this.viewResult(activityId);
+        return;
+      }
+      this._currentActivity = activity;
+      area.innerHTML = StudentView.activityAnswerSheet(activity);
+    } catch (err) {
+      Toast.show('Failed to load activity: ' + err.message, 'error');
+      this.loadActivities();
+    }
+  },
+
+  // ── Confirm & submit answers ──────────────────────────────────────────────
+  async confirmSubmit(activityId) {
+    const activity = this._currentActivity;
+    if (!activity) return;
+
+    // Collect answers from DOM
+    const answers = [];
+    let allAnswered = true;
+
+    for (const q of activity.questions) {
+      let val = null;
+
+      if (q.question_type === 'multiple_choice') {
+        const checked = document.querySelector(`input[name="q_${q.id}"]:checked`);
+        if (checked) val = checked.value;
+        else allAnswered = false;
+
+      } else if (q.question_type === 'checkbox') {
+        const checked = [...document.querySelectorAll(`input[name="q_${q.id}"]:checked`)].map(i => parseInt(i.value));
+        if (checked.length) val = JSON.stringify(checked);
+        else allAnswered = false;
+
+      } else {
+        const el = document.getElementById(`q_${q.id}`);
+        val = el ? el.value.trim() : null;
+        if (!val) allAnswered = false;
+      }
+
+      answers.push({ question_id: q.id, answer_value: val });
+    }
+
+    if (!allAnswered) {
+      const proceed = confirm('Some questions are unanswered. Submit anyway?');
+      if (!proceed) return;
+    }
+
+    const btn = document.getElementById('submit-activity-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '📤 Submitting…'; }
+
+    try {
+      const result = await api.submitActivityAnswers(activityId, answers);
+      Toast.show('Activity submitted!', 'success');
+      // Show result screen
+      const area = document.getElementById('content-area');
+      area.innerHTML = StudentView.activityResult(activity, result);
+    } catch (err) {
+      Toast.show('Submission failed: ' + err.message, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '📤 Submit Activity'; }
+    }
+  },
+
+  // ── View result of a past submission ─────────────────────────────────────
+  async viewResult(activityId) {
+    const area = document.getElementById('content-area');
+    area.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Loading result…</div></div>`;
+    try {
+      const [activity, result] = await Promise.all([
+        api.getStudentActivity(activityId),
+        api.getMyActivityResult(activityId),
+      ]);
+      area.innerHTML = StudentView.activityResult(activity, result);
+    } catch (err) {
+      Toast.show('Failed to load result: ' + err.message, 'error');
+      this.loadActivities();
+    }
+  },
+
+  // ── Legacy stubs kept for safety ─────────────────────────────────────────
+  submitActivity(actId) { this.openActivity(actId); },
 };
 
 /* ── Dark Mode ─────────────────────────────────────────────── */
@@ -1217,7 +2035,7 @@ const DarkMode = {
 };
 
 /* ══════════════════════════════════════════════════════════════
-   CALENDAR CONTROLLER (unchanged)
+   CALENDAR CONTROLLER (unchanged – kept as is)
    ══════════════════════════════════════════════════════════════ */
 const CalendarController = {
   _viewYear: null, _viewMonth: null,

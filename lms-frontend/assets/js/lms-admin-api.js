@@ -220,8 +220,20 @@ class LMSAdminAPI {
     return this._request("GET", "/admin/sections");
   }
 
+  async getSection(id) {
+    return this._request("GET", `/admin/sections/${id}`);
+  }
+
   async createSection({ name, class_id }) {
     return this._request("POST", "/admin/sections", { name, class_id });
+  }
+
+  async updateSection(id, data) {
+    return this._request("PUT", `/admin/sections/${id}`, data);
+  }
+
+  async deleteSection(id) {
+    return this._request("DELETE", `/admin/sections/${id}`);
   }
 
   // ── Subjects ──────────────────────────────────────────────────────────────
@@ -261,7 +273,7 @@ class LMSAdminAPI {
     return this._request("DELETE", `/admin/modules/${id}`);
   }
 
-  // ── Activities ────────────────────────────────────────────────────────────
+  // ── Activities (admin) ────────────────────────────────────────────────────
 
   async getActivities(module_id) {
     return this._request("GET", `/admin/activities?module_id=${module_id}`);
@@ -350,6 +362,87 @@ class LMSAdminAPI {
     return res.json();
   }
 
+  // ── Teacher Activities ────────────────────────────────────────────────────
+
+  /**
+   * Create a full activity with questions and choices.
+   * @param {Object} payload - matches ActivityCreateV2 schema
+   * @param {string} payload.title
+   * @param {number} payload.module_id
+   * @param {number} payload.subject_id
+   * @param {string} payload.activity_type  - quiz | long_quiz | task_performance | exam | lab_exercise | assignment | other
+   * @param {string} payload.format_type    - multiple_choice | checkbox | enumeration | freeform | assignment | hybrid
+   * @param {string} payload.grading_mode   - auto | manual
+   * @param {string} [payload.instructions]
+   * @param {string} [payload.start_date]   - ISO string
+   * @param {string} [payload.due_date]     - ISO string
+   * @param {Array}  payload.questions      - array of question objects
+   */
+  async createTeacherActivity(payload) {
+    return this._request("POST", "/teacher/me/activities", payload);
+  }
+
+  /**
+   * List activities created by the logged-in teacher.
+   * @param {Object} [filters]
+   * @param {number} [filters.module_id]
+   * @param {number} [filters.subject_id]
+   */
+  async getTeacherActivities({ module_id, subject_id } = {}) {
+    const q = new URLSearchParams();
+    if (module_id)  q.append("module_id", module_id);
+    if (subject_id) q.append("subject_id", subject_id);
+    const qs = q.toString() ? `?${q.toString()}` : "";
+    return this._request("GET", `/teacher/me/activities${qs}`);
+  }
+
+  /**
+   * Get one activity including all questions, choices, and correct answers (teacher only).
+   * @param {number} id
+   */
+  async getTeacherActivity(id) {
+    return this._request("GET", `/teacher/me/activities/${id}`);
+  }
+
+  /**
+   * Update an activity. Pass a questions array to fully replace all questions.
+   * @param {number} id
+   * @param {Object} payload - partial ActivityUpdateV2
+   */
+  async updateTeacherActivity(id, payload) {
+    return this._request("PUT", `/teacher/me/activities/${id}`, payload);
+  }
+
+  /**
+   * Delete an activity and all its submissions.
+   * @param {number} id
+   */
+  async deleteTeacherActivity(id) {
+    return this._request("DELETE", `/teacher/me/activities/${id}`);
+  }
+
+  /**
+   * Get all student submissions for one activity.
+   * @param {number} activityId
+   */
+  async getActivitySubmissions(activityId) {
+    return this._request("GET", `/teacher/me/activities/${activityId}/submissions`);
+  }
+
+  /**
+   * Manually grade a submission (for freeform / hybrid / assignment activities).
+   * @param {number} activityId
+   * @param {number} submissionId
+   * @param {{ score: number, grade?: string, remarks?: string }} gradeData
+   */
+  async manualGradeSubmission(activityId, submissionId, gradeData) {
+    return this._request(
+      "POST",
+      `/teacher/me/activities/${activityId}/submissions/${submissionId}/grade`,
+      gradeData
+    );
+  }
+
   // ── Student Portal ────────────────────────────────────────────────────────
 
   async getStudentSubjects() {
@@ -361,7 +454,45 @@ class LMSAdminAPI {
     return this._request("GET", `/student/me/modules${q}`);
   }
 
-  // Legacy / utility method (kept for compatibility)
+  /**
+   * Get published activities for the student's enrolled subjects.
+   * Correct answers are never included in the response.
+   * @param {number} [subject_id] - optional filter
+   */
+  async getStudentActivities(subject_id = null) {
+    const q = subject_id ? `?subject_id=${subject_id}` : "";
+    return this._request("GET", `/student/me/activities${q}`);
+  }
+
+  /**
+   * Get one activity with questions for answering (no correct answers exposed).
+   * @param {number} id
+   */
+  async getStudentActivity(id) {
+    return this._request("GET", `/student/me/activities/${id}`);
+  }
+
+  /**
+   * Submit answers for an activity.
+   * Auto-graded formats return a score immediately.
+   * Manual formats return is_graded: false until the teacher grades.
+   * @param {number} activityId
+   * @param {Array<{ question_id: number, answer_value: string }>} answers
+   */
+  async submitActivityAnswers(activityId, answers) {
+    return this._request("POST", `/student/me/activities/${activityId}/submit`, { answers });
+  }
+
+  /**
+   * Get the student's own submission result for an activity.
+   * @param {number} activityId
+   */
+  async getMyActivityResult(activityId) {
+    return this._request("GET", `/student/me/activities/${activityId}/result`);
+  }
+
+  // ── Legacy / utility ──────────────────────────────────────────────────────
+
   async request(method, path, body) {
     const url = this.baseURL + '/api/v1' + path;
     const options = {

@@ -286,23 +286,35 @@ const AdminView = {
   },
 
   /* ── Sections pane (accepts API sections) ── */
-  _sectionsPane(sections) {
-    if (!sections.length) return '<div class="empty-state"><div class="empty-state-icon">🏫</div><div class="empty-state-title">No sections yet</div></div>';
-    const rows = sections.map(sec => `
-      <tr>
-        <td><strong>${escHtml(sec.name)}</strong> (Class ID: ${sec.class_id})</td>
-        <td class="text-sm">—</td>
-        <td class="text-sm">—</td>
-        <td class="text-sm">—</td>
-        <td class="text-sm">—</td>
-        <td class="text-sm text-muted">—</td>
-        <td><button class="btn btn-xs btn-outline" onclick="AdminController.openEditSection(${sec.id})">✏️ Edit</button>
-        <button class="btn btn-xs btn-danger" onclick="AdminController.deleteSection(${sec.id})">🗑</button></td>
-      </tr>`).join('');
-    return `
-      <div class="um-toolbar"><button class="btn btn-primary" onclick="AdminController.openAddSection()">➕ Add Section</button></div>
-      <div class="card table-card"><div class="table-wrap"><table class="data-table"><thead><tr><th>Section</th><th>Class ID</th><th>Room</th><th>Adviser</th><th>Students</th><th>School Year</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
-  },
+_sectionsPane(sections) {
+  if (!sections || !sections.length) {
+    return '<div class="empty-state"><div class="empty-state-icon">🏫</div><div class="empty-state-title">No sections yet</div><button class="btn btn-primary mt-3" onclick="AdminController.openAddSection()">➕ Add Section</button></div>';
+  }
+  const rows = sections.map(sec => `
+    <tr>
+      <td><strong>${escHtml(sec.name)}</strong> (Class ID: ${sec.class_id})</td>
+      <td class="text-sm">—</td>
+      <td class="text-sm">—</td>
+      <td class="text-sm">—</td>
+      <td class="text-sm">—</td>
+      <td class="text-sm text-muted">—</td>
+      <td class="actions-cell">
+        <button class="btn btn-xs btn-outline" onclick="AdminController.openEditSection(${sec.id})">✏️ Edit</button>
+        <button class="btn btn-xs btn-danger" onclick="AdminController.deleteSection(${sec.id})">🗑</button>
+      </td>
+    </tr>
+  `).join('');
+  return `
+    <div class="um-toolbar"><button class="btn btn-primary" onclick="AdminController.openAddSection()">➕ Add Section</button></div>
+    <div class="card table-card">
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Section</th><th>Room</th><th>Adviser</th><th>Students</th><th>School Year</th><th>Actions</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+},
 
   /* ── Audit Log pane (still uses localStorage – kept as is) ── */
   _auditPane() {
@@ -500,60 +512,120 @@ const TeacherView = {
       <div class="module-grid" id="teacher-module-grid">${grid}</div>`;
   },
 
-  activities(user) {
-    const activities = activityModel.getByTeacher(user.id);
+  activities(user, apiActivities = null) {
+    const TYPE_LABELS = {
+      quiz:             '📝 Quiz',
+      long_quiz:        '📋 Long Quiz',
+      task_performance: '🎯 Task Performance',
+      exam:             '📜 Exam',
+      lab_exercise:     '🔬 Lab Exercise',
+      assignment:       '📌 Assignment',
+      other:            '📄 Other',
+    };
+    const FORMAT_LABELS = {
+      multiple_choice: '🔘 Multiple Choice',
+      checkbox:        '☑️ Checkbox',
+      enumeration:     '📝 Fill in Blank',
+      freeform:        '✍️ Essay',
+      assignment:      '📋 Assignment',
+      hybrid:          '🔀 Hybrid',
+    };
+
+    if (apiActivities === null) {
+      return `
+        <div class="section-header">
+          <div class="section-header-left"><h2>Activities & Quizzes</h2><p id="act-count">Loading…</p></div>
+          <div class="flex gap-2">
+            <div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search activities…" /></div>
+            <button class="btn btn-primary" onclick="TeacherController.openAddActivity()">➕ Create Activity</button>
+          </div>
+        </div>
+        <div id="teacher-activity-grid">
+          <div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Loading activities…</div></div>
+        </div>`;
+    }
+
+    if (!apiActivities.length) {
+      return `
+        <div class="section-header">
+          <div class="section-header-left"><h2>Activities & Quizzes</h2><p>0 activities</p></div>
+          <button class="btn btn-primary" onclick="TeacherController.openAddActivity()">➕ Create Activity</button>
+        </div>
+        <div class="empty-state">
+          <div class="empty-state-icon">📝</div>
+          <div class="empty-state-title">No activities yet</div>
+          <div class="empty-state-sub">Create your first quiz, exam, or assignment for students.</div>
+          <button class="btn btn-primary mt-3" onclick="TeacherController.openAddActivity()">➕ Create Activity</button>
+        </div>`;
+    }
+
+    const cards = apiActivities.map(a => {
+      const typeLabel   = TYPE_LABELS[a.activity_type]   || a.activity_type;
+      const formatLabel = FORMAT_LABELS[a.format_type]   || a.format_type;
+      const gradeBadge  = a.grading_mode === 'auto'
+        ? `<span class="badge badge-green" style="font-size:10px">⚡ Auto</span>`
+        : `<span class="badge badge-gold"  style="font-size:10px">✏️ Manual</span>`;
+      const dueLabel   = a.due_date   ? `Due: ${new Date(a.due_date).toLocaleDateString()}`   : 'No due date';
+      const startLabel = a.start_date ? `Opens: ${new Date(a.start_date).toLocaleDateString()}` : '';
+      const qCount     = a.questions?.length ?? 0;
+      const maxPts     = a.max_score ?? (a.questions?.reduce((s, q) => s + q.points, 0) ?? 0);
+      const pubBadge   = a.is_published
+        ? `<span class="badge badge-green" style="font-size:10px">Published</span>`
+        : `<span class="badge badge-gray"  style="font-size:10px">Draft</span>`;
+      const customType = a.activity_type === 'other' && a.activity_type_custom
+        ? ` · ${escHtml(a.activity_type_custom)}` : '';
+
+      return `
+        <div class="activity-card" data-searchable style="border:1px solid var(--gray-200);border-radius:10px;padding:16px;background:white;margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+            <div style="flex:1">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+                <span class="badge badge-maroon" style="font-size:11px">${escHtml(typeLabel)}${escHtml(customType)}</span>
+                <span class="badge" style="background:var(--gray-100);color:var(--gray-700);font-size:11px">${escHtml(formatLabel)}</span>
+                ${gradeBadge}
+                ${pubBadge}
+              </div>
+              <div style="font-weight:600;font-size:15px;margin-bottom:4px">${escHtml(a.title)}</div>
+              ${a.instructions ? `<div style="font-size:12px;color:var(--gray-500);margin-bottom:6px">${escHtml(a.instructions.slice(0,120))}${a.instructions.length > 120 ? '…' : ''}</div>` : ''}
+              <div style="font-size:12px;color:var(--gray-400);display:flex;gap:16px;flex-wrap:wrap">
+                <span>📊 ${qCount} question${qCount !== 1 ? 's' : ''} · ${maxPts} pts</span>
+                <span>📅 ${dueLabel}</span>
+                ${startLabel ? `<span>🕑 ${startLabel}</span>` : ''}
+                <span>📬 ${a.submission_count ?? 0} submitted</span>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;min-width:100px">
+              <button class="btn btn-xs btn-outline" onclick="TeacherController.openGradeActivity(${a.id})">📊 Submissions</button>
+              <button class="btn btn-xs btn-outline" onclick="TeacherController.openEditActivity(${a.id})">✏️ Edit</button>
+              <button class="btn btn-xs btn-danger"  onclick="TeacherController.deleteActivity(${a.id})">🗑️ Delete</button>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+
     return `
       <div class="section-header">
-        <div class="section-header-left"><h2>Activities & Quizzes</h2><p>${activities.length} created</p></div>
-        <button class="btn btn-primary" onclick="TeacherController.openAddActivity()">➕ Create Activity</button>
+        <div class="section-header-left">
+          <h2>Activities & Quizzes</h2>
+          <p id="act-count">${apiActivities.length} activity(s)</p>
+        </div>
+        <div class="flex gap-2">
+          <div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search activities…" /></div>
+          <button class="btn btn-primary" onclick="TeacherController.openAddActivity()">➕ Create Activity</button>
+        </div>
       </div>
-      ${activities.map(a => {
-        const sub         = subjectModel.getById(a.subjectId);
-        const submissions = gradeModel.getByActivity(a.id);
-        return `<div class="activity-card">
-          <div class="activity-type-icon" style="${typeBg(a.type)}">${typeEmoji(a.type)}</div>
-          <div class="activity-body">
-            <div class="activity-title">${escHtml(a.title)}</div>
-            <div class="activity-meta">${sub ? sub.name : 'Unknown'} · Due: ${fmtDate(a.dueDate)} · ${a.points} pts · <span class="badge badge-gray">${submissions.length} submitted</span></div>
-            <div class="activity-actions"><button class="btn btn-xs btn-outline" onclick="TeacherController.openGradeActivity('${a.id}')">📊 Grade</button><button class="btn btn-xs btn-outline" onclick="TeacherController.openEditActivity('${a.id}')">✏️ Edit</button><button class="btn btn-xs btn-danger" onclick="TeacherController.deleteActivity('${a.id}')">🗑️ Delete</button></div>
-          </div>
-          <span class="badge badge-maroon">${a.type}</span>
-        </div>`;
-      }).join('') || `<div class="empty-state"><div class="empty-state-icon">📝</div><div class="empty-state-title">No activities created yet</div><button class="btn btn-primary mt-3" onclick="TeacherController.openAddActivity()">Create Activity</button></div>`}`;
+      <div id="teacher-activity-grid">${cards}</div>`;
   },
 
   grades(user) {
-    const activities = activityModel.getByTeacher(user.id);
-    const actIds     = new Set(activities.map(a => a.id));
-    const grades     = gradeModel.getAll().filter(g => actIds.has(g.activityId));
+    // Rendered as a loading shell — _postRender fills it via API
     return `
       <div class="section-header">
-        <div class="section-header-left"><h2>Grade Records</h2><p>${grades.length} grade entries</p></div>
+        <div class="section-header-left"><h2>Grade Records</h2><p id="grade-count">Loading…</p></div>
         <div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search grades…" /></div>
       </div>
-      <div class="card">
-        <div class="table-wrap">
-          <table class="data-table">
-            <thead><tr><th>Student</th><th>Activity</th><th>Subject</th><th>Score</th><th>Grade</th><th>Remarks</th><th>Date</th></tr></thead>
-            <tbody>
-              ${grades.map(g => {
-                const student  = userModel.getById(g.studentId);
-                const activity = activityModel.getById(g.activityId);
-                const subject  = subjectModel.getById(g.subjectId);
-                const pct      = Math.round(g.score / g.maxScore * 100);
-                return `<tr data-searchable>
-                  <td><strong>${escHtml(student ? student.name : '?')}</strong></td>
-                  <td class="text-sm">${escHtml(activity ? activity.title : '?')}</td>
-                  <td><span class="badge badge-maroon">${escHtml(subject ? subject.name : '?')}</span></td>
-                  <td>${g.score}/${g.maxScore}</td>
-                  <td><span class="grade-pill ${gradeClass(pct)}">${gradeLabel(pct)}</span></td>
-                  <td class="text-sm text-muted">${escHtml(g.remarks || '—')}</td>
-                  <td class="text-sm text-muted">${fmtDate(g.gradedAt)}</td>
-                </tr>`;
-              }).join('') || '<tr><td colspan="7" class="text-center text-muted" style="padding:40px">No grades recorded yet</td></tr>'}
-            </tbody>
-          </table>
-        </div>
+      <div id="grades-table-wrap">
+        <div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Loading grades…</div></div>
       </div>`;
   },
 };
@@ -624,16 +696,331 @@ const StudentView = {
     return `<div class="section-header"><div class="section-header-left"><h2>Learning Modules</h2><p id="module-count">${apiModules.length} module(s) available</p></div><div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search modules…" /></div></div><div class="module-grid" id="student-module-grid">${grid}</div>`;
   },
 
-  activities(user) {
-    const activities = activityModel.getAll();
-    const grades     = gradeModel.getByStudent(user.id);
+  /** Loading skeleton shown while API fetches */
+  activitiesLoading() {
     return `
-      <div class="section-header"><div class="section-header-left"><h2>Activities</h2><p>${activities.length} assigned activities</p></div></div>
-      ${activities.map(a => {
-        const sub  = subjectModel.getById(a.subjectId);
-        const done = grades.find(g => g.activityId === a.id);
-        return `<div class="activity-card"><div class="activity-type-icon" style="${typeBg(a.type)}">${typeEmoji(a.type)}</div><div class="activity-body"><div class="activity-title">${escHtml(a.title)}</div><div class="activity-meta">${sub ? sub.name : '?'} · ${a.points} pts · Due: ${fmtDate(a.dueDate)}</div><div class="activity-meta" style="color:var(--gray-600)">${escHtml(a.description)}</div><div class="activity-actions mt-2">${done ? `<span class="badge badge-green">✓ Submitted · Score: ${done.score}/${done.maxScore}</span>` : `<button class="btn btn-xs btn-primary" onclick="StudentController.submitActivity('${a.id}')">📤 Submit</button>`}</div></div><span class="badge ${done ? 'badge-green' : 'badge-gray'}">${done ? 'Done' : 'Pending'}</span></div>`;
-      }).join('')}`;
+      <div class="section-header">
+        <div class="section-header-left"><h2>Activities &amp; Quizzes</h2><p id="act-student-count">Loading…</p></div>
+        <div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search activities…" oninput="StudentController._filterActivities(this.value)" /></div>
+      </div>
+      <div id="student-activity-list">
+        <div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Loading activities…</div></div>
+      </div>`;
+  },
+
+  /** Render the full student activities list from API data — Canvas/table style */
+  activities(apiActivities) {
+    const TYPE_LABELS = { quiz:'Quiz', long_quiz:'Long Quiz', task_performance:'Task Performance', exam:'Exam', lab_exercise:'Lab Exercise', assignment:'Assignment', other:'Other' };
+    const FMT_LABELS  = { multiple_choice:'Multiple Choice', checkbox:'Checkbox', enumeration:'Enumeration', freeform:'Free-form', assignment:'Assignment', hybrid:'Hybrid' };
+
+    const fmtDate  = d => d ? new Date(d).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'}) : '—';
+    const fmtTime  = d => d ? new Date(d).toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'}) : '';
+    const fmtFull  = d => d ? `${fmtDate(d)}<br><span style="color:var(--gray-500);font-size:11px">${fmtTime(d)}</span>` : '—';
+
+    if (!apiActivities || !apiActivities.length) {
+      return `
+        <div class="section-header">
+          <div class="section-header-left"><h2>Activities &amp; Quizzes</h2><p>No activities yet</p></div>
+        </div>
+        <div class="empty-state" style="margin-top:40px">
+          <div class="empty-state-icon">📭</div>
+          <div class="empty-state-title">No Activities Yet</div>
+          <div class="empty-state-sub">Your teacher hasn't posted any activities for your subjects yet. Check back later!</div>
+        </div>`;
+    }
+
+    const rows = apiActivities.map(a => {
+      const typeLabel = TYPE_LABELS[a.activity_type] || a.activity_type;
+      const fmtLabel  = FMT_LABELS[a.format_type]   || a.format_type;
+      const sub       = a.submission;
+      const isPastDue = a.is_past_due === true;
+      // can_answer: trust API; fallback = no submission + not past due (handles timezone drift)
+      const canAnswer = a.can_answer === true || (!sub && !isPastDue);
+
+      /* ── Assignment cell: icon + title + tags ── */
+      const typeIcon = `<div style="width:32px;height:32px;background:var(--rose-tint);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">📝</div>`;
+      const gradingTag = a.grading_mode === 'auto'
+        ? `<span class="badge badge-gold" style="font-size:10px">⚡ Auto</span>`
+        : `<span class="badge badge-gray" style="font-size:10px">✏️ Manual</span>`;
+
+      /* Status badge — use API status as source of truth */
+      const _statusMap = {
+        graded:    ['badge-green',  '\u2705 Graded'],
+        submitted: ['badge-blue',   '\uD83D\uDCE4 Submitted'],
+        past_due:  ['badge-danger', '\u26D4 Past Due'],
+        not_open:  ['badge-gray',   '\uD83D\uDD12 Not Yet Open'],
+        open:      ['badge-maroon', '\uD83D\uDFE2 Open'],
+      };
+      const [_sCls, _sLbl] = _statusMap[a.status] || ['badge-maroon', '\uD83D\uDFE2 Open'];
+      const statusBadge = `<span class="badge ${_sCls}" style="font-size:10px">${_sLbl}</span>`;
+
+      const assignmentCell = `
+        <td style="padding:14px 16px">
+          <div style="display:flex;align-items:flex-start;gap:10px">
+            ${typeIcon}
+            <div>
+              <div style="font-size:13px;font-weight:700;color:var(--maroon);margin-bottom:3px">${escHtml(a.title)}</div>
+              <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">
+                <span class="badge badge-maroon" style="font-size:10px">${escHtml(typeLabel)}</span>
+                <span class="badge badge-blue"   style="font-size:10px">${escHtml(fmtLabel)}</span>
+                ${gradingTag}
+                ${statusBadge}
+              </div>
+            </div>
+          </div>
+        </td>`;
+
+      /* ── Start / Due ── */
+      const startCell = `<td style="padding:14px 12px;font-size:12px;color:var(--gray-600);white-space:nowrap">${fmtFull(a.start_date)}</td>`;
+      const dueStyle  = isPastDue && !sub ? 'color:#c0392b;font-weight:600' : 'color:var(--gray-600)';
+      const dueCell   = `<td style="padding:14px 12px;font-size:12px;${dueStyle};white-space:nowrap">${fmtFull(a.due_date)}</td>`;
+
+      /* ── % of overall (max_score shown as pts weight) ── */
+      const pctCell = `<td style="padding:14px 12px;font-size:12px;color:var(--gray-600);text-align:center">${a.max_score != null ? a.max_score + ' pts' : '—'}</td>`;
+
+      /* ── Submitted ── */
+      const submittedCell = sub
+        ? `<td style="padding:14px 12px;text-align:center"><span style="color:#2e6b3e;font-size:18px" title="Submitted ${sub.submitted_at ? new Date(sub.submitted_at).toLocaleDateString() : ''}">✓</span></td>`
+        : `<td style="padding:14px 12px;text-align:center"><span style="color:var(--gray-400);font-size:16px">—</span></td>`;
+
+      /* ── Graded ── */
+      let gradedCell = '';
+      if (!sub) {
+        gradedCell = `<td style="padding:14px 12px;text-align:center"><span style="color:var(--gray-400);font-size:16px">—</span></td>`;
+      } else if (sub.is_graded) {
+        gradedCell = `<td style="padding:14px 12px;text-align:center"><span style="color:#2e6b3e;font-size:18px">✓</span></td>`;
+      } else {
+        gradedCell = `<td style="padding:14px 12px;text-align:center"><span style="color:#c0392b;font-size:18px" title="Awaiting grade">✗</span></td>`;
+      }
+
+      /* ── Score ── */
+      let scoreCell = '';
+      if (!sub) {
+        /* No submission at all */
+        if (isPastDue) {
+          scoreCell = `<td style="padding:14px 12px;text-align:center">
+            <div style="font-size:13px;font-weight:600;color:#c0392b">0 / ${a.max_score ?? '?'}</div>
+            <div style="font-size:10px;color:#c0392b">No submission</div>
+          </td>`;
+        } else {
+          scoreCell = `<td style="padding:14px 12px;text-align:center;font-size:13px;color:var(--gray-400)">? / ${a.max_score ?? '?'}</td>`;
+        }
+      } else if (sub.is_graded && sub.score != null) {
+        const pct = sub.max_score ? Math.round(sub.score / sub.max_score * 100) : 0;
+        scoreCell = `<td style="padding:14px 12px;text-align:center">
+          <div style="font-size:13px;font-weight:700;color:#1a1a2e">${sub.score} / ${sub.max_score ?? a.max_score}</div>
+          <div style="font-size:11px;color:var(--gray-500)">${pct}%</div>
+        </td>`;
+      } else {
+        /* Submitted but not yet graded */
+        scoreCell = `<td style="padding:14px 12px;text-align:center;font-size:13px;color:var(--gray-500)">? / ${sub.max_score ?? a.max_score ?? '?'}<br><span style="font-size:10px">Pending</span></td>`;
+      }
+
+      /* ── Grade ── */
+      let gradeCell = '';
+      if (sub && sub.is_graded && sub.grade) {
+        const passed = parseFloat(sub.grade) <= 3.00;
+        const gradeColor = passed ? '#2e6b3e' : '#c0392b';
+        const gradeBg    = passed ? '#e6f4ea' : '#fde8ec';
+        gradeCell = `<td style="padding:14px 12px;text-align:center">
+          <span style="display:inline-block;padding:3px 10px;border-radius:6px;background:${gradeBg};color:${gradeColor};font-weight:700;font-size:13px">${escHtml(sub.grade)}</span>
+        </td>`;
+      } else if (sub && !sub.is_graded) {
+        gradeCell = `<td style="padding:14px 12px;text-align:center;font-size:13px;color:var(--gray-400)">?</td>`;
+      } else {
+        gradeCell = `<td style="padding:14px 12px;text-align:center;font-size:13px;color:var(--gray-400)">—</td>`;
+      }
+
+      /* ── Action ── */
+      let actionCell = '';
+      if (canAnswer) {
+        actionCell = `<td style="padding:14px 12px;text-align:center">
+          <button class="btn btn-primary btn-xs" onclick="StudentController.openActivity(${a.id})">✏️ Start</button>
+        </td>`;
+      } else if (sub) {
+        actionCell = `<td style="padding:14px 12px;text-align:center">
+          <button class="btn btn-outline btn-xs" onclick="StudentController.viewResult(${a.id})">👁 View</button>
+        </td>`;
+      } else if (isPastDue) {
+        actionCell = `<td style="padding:14px 12px;text-align:center">
+          <span class="badge badge-danger" style="font-size:10px">No Late Submissions</span>
+        </td>`;
+      } else {
+        actionCell = `<td style="padding:14px 12px;text-align:center"><span style="color:var(--gray-400);font-size:12px">—</span></td>`;
+      }
+
+      const rowBg = sub && sub.is_graded ? '' : (isPastDue && !sub ? 'background:#fffafa' : '');
+      return `
+        <tr data-searchable style="${rowBg}">
+          ${assignmentCell}
+          ${startCell}
+          ${dueCell}
+          ${pctCell}
+          ${submittedCell}
+          ${gradedCell}
+          ${scoreCell}
+          ${gradeCell}
+          ${actionCell}
+        </tr>`;
+    }).join('');
+
+    return `
+      <div class="section-header">
+        <div class="section-header-left"><h2>Activities &amp; Quizzes</h2><p id="act-student-count">${apiActivities.length} activity(s)</p></div>
+        <div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search activities…" oninput="StudentController._filterActivities(this.value)" /></div>
+      </div>
+      <div class="table-wrap" style="margin-top:8px;border:1px solid var(--gray-200);border-radius:12px;overflow:hidden;background:white;box-shadow:0 1px 4px rgba(0,0,0,.05)">
+        <table class="activity-table">
+          <thead>
+            <tr>
+              <th style="text-align:left">Assignment</th>
+              <th style="text-align:left">Start</th>
+              <th style="text-align:left">Due</th>
+              <th style="text-align:center">Points</th>
+              <th style="text-align:center">Submitted</th>
+              <th style="text-align:center">Graded</th>
+              <th style="text-align:center">Score</th>
+              <th style="text-align:center">Grade</th>
+              <th style="text-align:center">Action</th>
+            </tr>
+          </thead>
+          <tbody id="student-activity-list">
+            ${rows}
+          </tbody>
+        </table>
+      </div>`;
+  },
+
+  /** Activity answering screen – shown when student opens an activity */
+  activityAnswerSheet(activity) {
+    const fmtDate = d => d ? new Date(d).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+
+    const questions = (activity.questions || []).map((q, idx) => {
+      let answerWidget = '';
+
+      if (q.question_type === 'multiple_choice') {
+        const choices = q.choices.map((c, ci) => `
+          <label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--gray-200);border-radius:8px;cursor:pointer;margin-bottom:6px;transition:background .15s" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background=''">
+            <input type="radio" name="q_${q.id}" value="${ci}" style="accent-color:var(--maroon)" />
+            <span style="font-size:14px">${escHtml(c.choice_text)}</span>
+          </label>`).join('');
+        answerWidget = `<div style="margin-top:10px">${choices}</div>`;
+
+      } else if (q.question_type === 'checkbox') {
+        const choices = q.choices.map((c, ci) => `
+          <label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--gray-200);border-radius:8px;cursor:pointer;margin-bottom:6px;transition:background .15s" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background=''">
+            <input type="checkbox" name="q_${q.id}" value="${ci}" style="accent-color:var(--maroon)" />
+            <span style="font-size:14px">${escHtml(c.choice_text)}</span>
+          </label>`).join('');
+        answerWidget = `<div style="margin-top:10px">${choices}<small style="color:var(--gray-500);font-size:11px">Select all that apply.</small></div>`;
+
+      } else if (q.question_type === 'fill_blank' || q.question_type === 'enumeration') {
+        answerWidget = `<input type="text" id="q_${q.id}" class="form-control" placeholder="Type your answer here…" style="margin-top:10px" />`;
+
+      } else {
+        // essay / freeform
+        answerWidget = `<textarea id="q_${q.id}" class="form-control" rows="4" placeholder="Write your answer here…" style="margin-top:10px;resize:vertical"></textarea>`;
+      }
+
+      return `
+        <div class="activity-card" style="border:1px solid var(--gray-200);border-radius:10px;padding:18px 20px;background:white;margin-bottom:14px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+            <div style="font-size:13px;font-weight:700;color:var(--maroon)">Question ${idx + 1}</div>
+            <span class="badge badge-gold">${q.points} pt${q.points !== 1 ? 's' : ''}</span>
+          </div>
+          <div style="font-size:14px;font-weight:600;color:#1a1a2e;line-height:1.5">${escHtml(q.question_text)}</div>
+          ${answerWidget}
+        </div>`;
+    }).join('');
+
+    const totalPts = (activity.questions || []).reduce((s, q) => s + q.points, 0);
+
+    return `
+      <div style="max-width:720px;margin:0 auto">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+          <button class="btn btn-ghost btn-sm" onclick="DashboardController.loadSection('activities')">← Back</button>
+          <div>
+            <h2 style="margin:0;font-size:18px">${escHtml(activity.title)}</h2>
+            <div style="font-size:12px;color:var(--gray-500)">⏰ Due: ${fmtDate(activity.due_date)} · 🎯 ${totalPts} pts total</div>
+          </div>
+        </div>
+        ${activity.instructions ? `
+          <div style="padding:14px 16px;background:#fff9e6;border:1px solid #f0c040;border-radius:8px;margin-bottom:20px;font-size:13px;color:#7a5c00">
+            <strong>📌 Instructions:</strong> ${escHtml(activity.instructions)}
+          </div>` : ''}
+        <div id="answer-sheet-questions">${questions || '<div class="empty-state"><div class="empty-state-title">No questions found.</div></div>'}</div>
+        ${activity.questions && activity.questions.length ? `
+          <div style="position:sticky;bottom:0;background:white;border-top:1px solid var(--gray-200);padding:14px 0;display:flex;justify-content:flex-end;gap:10px;margin-top:8px">
+            <button class="btn btn-outline" onclick="DashboardController.loadSection('activities')">Cancel</button>
+            <button class="btn btn-primary" id="submit-activity-btn" onclick="StudentController.confirmSubmit(${activity.id})">📤 Submit Activity</button>
+          </div>` : ''}
+      </div>`;
+  },
+
+  /** Result screen shown after submitting or viewing past submission */
+  activityResult(activity, result) {
+    const fmtDate = d => d ? new Date(d).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+    const pct = result.max_score ? Math.round(result.score / result.max_score * 100) : null;
+
+    const answerMap = {};
+    (result.answers || []).forEach(a => { answerMap[a.question_id] = a; });
+
+    const questions = (activity.questions || []).map((q, idx) => {
+      const ans = answerMap[q.id];
+      const correctIcon = ans ? (ans.is_correct === true ? '✅' : ans.is_correct === false ? '❌' : '📝') : '—';
+      const ptsEarned   = ans ? (ans.points_earned ?? '?') : 0;
+
+      let answerDisplay = '—';
+      if (ans && ans.answer_value != null) {
+        if (q.question_type === 'multiple_choice' || q.question_type === 'checkbox') {
+          // Map index(es) back to choice text if available
+          try {
+            const idxs = q.question_type === 'checkbox' ? JSON.parse(ans.answer_value) : [parseInt(ans.answer_value)];
+            const labels = idxs.map(i => q.choices[i]?.choice_text || `Choice ${i}`);
+            answerDisplay = labels.join(', ');
+          } catch { answerDisplay = ans.answer_value; }
+        } else {
+          answerDisplay = ans.answer_value;
+        }
+      }
+
+      const rowBg = ans ? (ans.is_correct === true ? '#e6f4ea' : ans.is_correct === false ? '#fde8ec' : '#fff9e6') : '';
+
+      return `
+        <div style="border:1px solid var(--gray-200);border-radius:10px;padding:14px 18px;background:${rowBg || 'white'};margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div style="font-size:13px;font-weight:700;color:var(--maroon)">Q${idx + 1} ${correctIcon}</div>
+            <span class="badge badge-gold">${ptsEarned} / ${q.points} pt${q.points !== 1 ? 's' : ''}</span>
+          </div>
+          <div style="font-size:13px;font-weight:600;color:#1a1a2e;margin:6px 0">${escHtml(q.question_text)}</div>
+          <div style="font-size:13px;color:#444">Your answer: <em>${escHtml(answerDisplay)}</em></div>
+        </div>`;
+    }).join('');
+
+    return `
+      <div style="max-width:720px;margin:0 auto">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+          <button class="btn btn-ghost btn-sm" onclick="DashboardController.loadSection('activities')">← Back to Activities</button>
+        </div>
+
+        <div style="padding:24px;background:white;border:1px solid var(--gray-200);border-radius:12px;margin-bottom:20px;text-align:center">
+          <div style="font-size:36px;margin-bottom:8px">${result.is_graded ? '🏆' : '⏳'}</div>
+          <div style="font-size:20px;font-weight:700;color:#1a1a2e;margin-bottom:4px">${escHtml(activity.title)}</div>
+          ${result.is_graded ? `
+            <div style="font-size:32px;font-weight:800;color:var(--maroon);margin:10px 0">${result.score} <span style="font-size:18px;color:#888">/ ${result.max_score} pts</span></div>
+            <div style="font-size:15px;color:#555">${pct}% · Grade: <strong>${result.grade || '—'}</strong></div>
+            ${result.remarks ? `<div style="margin-top:6px;font-size:13px;color:#666">📝 ${escHtml(result.remarks)}</div>` : ''}
+          ` : `
+            <div style="font-size:14px;color:#1a4a8a;margin-top:8px">Submitted on ${fmtDate(result.submitted_at)}</div>
+            <div style="font-size:13px;color:#888;margin-top:4px">Your work is with your teacher for review. Grade will be posted once evaluated.</div>
+          `}
+        </div>
+
+        ${activity.questions && activity.questions.length ? `
+          <div style="font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:12px">Answer Review</div>
+          ${questions}
+        ` : ''}
+      </div>`;
   },
 
   myGrades(user) {

@@ -207,6 +207,7 @@ textarea.form-control      { resize: vertical; min-height: 80px; }
 .badge-red    { background: var(--red-light); color: var(--red); }
 .badge-gold   { background: var(--gold-pale); color: #8a6200; }
 .badge-gray   { background: var(--gray-100); color: var(--gray-600); }
+.badge-danger { background: #fde8ec; color: #8b0020; }
 .badge-blue   { background: var(--blue-light); color: var(--blue); }
 
 /* ── Cards ─────────────────────────────────────────────────── */
@@ -957,3 +958,36 @@ body.dark-mode .teacher-subject-header .badge {
 body.dark-mode .student-list > div {
   border-bottom-color: #4a2d33;
 }
+
+/* ============================================================
+   Student Activity Table (Canvas-style)
+   ============================================================ */
+.activity-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.activity-table thead tr {
+  background: var(--maroon) !important;
+}
+.activity-table thead th {
+  background: transparent !important;
+  color: #fff !important;
+  border-bottom: none !important;
+  padding: 12px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  white-space: nowrap;
+}
+.activity-table thead th:first-child { padding-left: 16px; }
+.activity-table tbody tr { border-bottom: 1px solid var(--gray-100); }
+.activity-table tbody tr:last-child { border-bottom: none; }
+.activity-table tbody tr:hover { background: var(--rose-tint); }
+.activity-table tbody td { padding: 14px 12px; font-size: 13px; vertical-align: middle; }
+.activity-table tbody td:first-child { padding-left: 16px; }
+
+body.dark-mode .activity-table thead tr { background: #6b0018 !important; }
+body.dark-mode .activity-table thead th { color: #fce4ec !important; }
+body.dark-mode .activity-table tbody tr { border-bottom-color: #3a1a20; }
+body.dark-mode .activity-table tbody tr:hover { background: #2a1015; }

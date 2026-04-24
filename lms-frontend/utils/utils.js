@@ -40,11 +40,12 @@ const Toast = {
    Closes on overlay click or close button.
    ────────────────────────────────────────────────────────── */
 const Modal = {
-  show(title, bodyHTML, footerHTML = '') {
+  show(title, bodyHTML, footerHTML = '', opts = {}) {
     const container = document.getElementById('modal-container');
+    const wideStyle = opts.wide ? 'max-width:860px;width:96%;' : '';
     container.innerHTML = `
       <div class="modal-overlay" id="modal-overlay">
-        <div class="modal">
+        <div class="modal" style="${wideStyle}">
           <div class="modal-header">
             <span class="modal-title">${title}</span>
             <button class="modal-close" onclick="Modal.close()" aria-label="Close">&times;</button>
