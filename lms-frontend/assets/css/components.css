@@ -991,3 +991,110 @@ body.dark-mode .activity-table thead tr { background: #6b0018 !important; }
 body.dark-mode .activity-table thead th { color: #fce4ec !important; }
 body.dark-mode .activity-table tbody tr { border-bottom-color: #3a1a20; }
 body.dark-mode .activity-table tbody tr:hover { background: #2a1015; }
+
+/* ── Student Subject Accordion Cards ───────────────────────────────── */
+.student-subject-card {
+  background: var(--white);
+  border-radius: var(--radius);
+  border: 1.5px solid var(--gray-100);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: border-color var(--transition), box-shadow var(--transition);
+  cursor: pointer;
+}
+.student-subject-card:hover {
+  border-color: var(--rose-mid);
+  box-shadow: var(--shadow);
+}
+.student-subject-card.accordion-open {
+  border-color: var(--maroon);
+}
+.student-subject-card-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  user-select: none;
+}
+.subject-accordion-body {
+  transition: max-height 0.3s ease;
+}
+.subject-accordion-inner {
+  border-top: 1px solid var(--gray-100);
+  padding: 12px 18px 16px;
+}
+.accordion-term-section {
+  margin-bottom: 14px;
+}
+.accordion-term-section:last-child { margin-bottom: 0; }
+.accordion-term-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.acc-term-badge {
+  background: var(--maroon);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 20px;
+  letter-spacing: .4px;
+}
+.acc-term-counts {
+  font-size: 11px;
+  color: var(--gray-400);
+}
+.acc-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  margin: 8px 0 4px;
+}
+.accordion-content-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--gray-50, #fafafa);
+  margin-bottom: 4px;
+  transition: background var(--transition);
+}
+.accordion-content-item:hover { background: var(--rose-tint, #fff0f3); }
+.acc-item-icon { font-size: 15px; flex-shrink: 0; }
+.acc-item-label {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--maroon-dark);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.acc-item-desc {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--gray-400);
+}
+.subject-accordion-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 0 10px;
+  gap: 6px;
+  color: var(--gray-400);
+  font-size: 13px;
+}
+
+/* Dark mode */
+body.dark-mode .student-subject-card { background: #1e1013; border-color: #3a1a20; }
+body.dark-mode .student-subject-card:hover { border-color: #c0384e; }
+body.dark-mode .student-subject-card.accordion-open { border-color: var(--rose-mid); }
+body.dark-mode .subject-accordion-inner { border-top-color: #3a1a20; }
+body.dark-mode .accordion-content-item { background: #2a1015; }
+body.dark-mode .accordion-content-item:hover { background: #3a1a20; }
+body.dark-mode .acc-item-label { color: #f0d0d5; }

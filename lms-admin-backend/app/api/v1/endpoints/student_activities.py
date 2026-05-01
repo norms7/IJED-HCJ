@@ -21,7 +21,7 @@ from app.db.session import get_db
 from app.models.models import (
     Activity, ActivityAnswer, ActivityQuestion, ActivityQuestionChoice,
     ActivitySubmission, Module, Section, Student, StudentSectionAssignment,
-    TeacherClassAssignment,
+    StudentSubjectEnrollment, TeacherClassAssignment,
 )
 from app.schemas.schemas import ActivitySubmitRequest, SubmissionOut
 
@@ -44,7 +44,8 @@ async def get_current_student(
         select(Student)
         .options(
             selectinload(Student.section_assignments)
-            .selectinload(StudentSectionAssignment.section)
+            .selectinload(StudentSectionAssignment.section),
+            selectinload(Student.subject_enrollments),
         )
         .where(Student.user_id == user_id)
     )
@@ -167,39 +168,47 @@ async def list_student_activities(
     student: Student = Depends(get_current_student),
     db: AsyncSession = Depends(get_db),
 ):
-    # Re-query section assignments fresh (avoids async session relationship expiry)
-    ssa_result = await db.execute(
-        select(StudentSectionAssignment)
-        .options(selectinload(StudentSectionAssignment.section))
-        .where(StudentSectionAssignment.student_id == student.id)
-    )
-    ssa_rows = ssa_result.scalars().all()
-    class_ids = {
-        row.section.class_id
-        for row in ssa_rows
-        if row.section and row.section.class_id
-    }
-    if not class_ids:
-        return []
+    # ── 1. Direct subject enrollments (primary source) ───────────────────
+    direct_enrollments = student.subject_enrollments or []
+    subject_ids: set[int] = set()
 
-    # Get subject_ids for student's classes
-    tca_result = await db.execute(
-        select(TeacherClassAssignment)
-        .where(TeacherClassAssignment.class_id.in_(class_ids))
-    )
-    tca_rows = tca_result.scalars().all()
-    subject_ids = {r.subject_id for r in tca_rows}
+    if direct_enrollments:
+        subject_ids = {e.subject_id for e in direct_enrollments}
+    else:
+        # ── 2. Fallback: section -> class -> teacher_class_assignments ─────
+        ssa_result = await db.execute(
+            select(StudentSectionAssignment)
+            .options(selectinload(StudentSectionAssignment.section))
+            .where(StudentSectionAssignment.student_id == student.id)
+        )
+        ssa_rows = ssa_result.scalars().all()
+        class_ids = {
+            row.section.class_id
+            for row in ssa_rows
+            if row.section and row.section.class_id
+        }
+        if not class_ids:
+            return []
+
+        tca_result = await db.execute(
+            select(TeacherClassAssignment)
+            .where(TeacherClassAssignment.class_id.in_(class_ids))
+        )
+        subject_ids = {r.subject_id for r in tca_result.scalars().all()}
+
     if not subject_ids:
         return []
 
-    # Get modules in these classes
+    # ── Get published modules for the resolved subject_ids ───────────────
     mod_result = await db.execute(
         select(Module).where(
-            Module.class_id.in_(class_ids),
+            Module.subject_id.in_(subject_ids),
             Module.is_published == True,
         )
     )
-    module_ids = {m.id for m in mod_result.scalars().all()}
+    modules_list = mod_result.scalars().all()
+    module_ids = {m.id for m in modules_list}
+    module_term_map = {m.id: m.term for m in modules_list}  # module_id -> term string
     if not module_ids:
         return []
 
@@ -242,6 +251,7 @@ async def list_student_activities(
             "grading_mode":      act.grading_mode,
             "module_id":         act.module_id,
             "subject_id":        act.subject_id,
+            "term":              module_term_map.get(act.module_id),
             "max_score":         act.max_score,
             "start_date":        act.start_date.isoformat() if act.start_date else None,
             "due_date":          act.due_date.isoformat() if act.due_date else None,
