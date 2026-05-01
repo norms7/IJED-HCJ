@@ -670,14 +670,171 @@ const StudentView = {
       </div>`;
   },
 
-  mySubjects() {
-    const subjects = subjectModel.getAll();
+  mySubjects(apiSubjects = null, apiModules = [], apiActivities = []) {
+    // ── Loading skeleton ──────────────────────────────────────────────────
+    if (apiSubjects === null) {
+      return `
+        <div class="section-header">
+          <div class="section-header-left"><h2>My Subjects</h2><p>All enrolled subjects this term</p></div>
+          <div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search subjects…" /></div>
+        </div>
+        <div class="subject-list" id="student-subjects-list">
+          <div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Loading subjects…</div></div>
+        </div>`;
+    }
+
+    // ── Subject icon / color palette ──────────────────────────────────────
+    const PALETTE = [
+      { color: '#8b1a2e', icon: '➕' }, { color: '#2e6b3e', icon: '🔬' },
+      { color: '#1a4a8a', icon: '📖' }, { color: '#c04a00', icon: '🇵🇭' },
+      { color: '#6a0dad', icon: '🎨' }, { color: '#0d6e8a', icon: '🌐' },
+      { color: '#7a5500', icon: '📐' }, { color: '#3d3d3d', icon: '📚' },
+    ];
+    const NAMED = {
+      'Mathematics': { color: '#8b1a2e', icon: '➕' },
+      'Science':     { color: '#2e6b3e', icon: '🔬' },
+      'English':     { color: '#1a4a8a', icon: '📖' },
+      'Filipino':    { color: '#c04a00', icon: '🇵🇭' },
+      'MAPEH':       { color: '#6a0dad', icon: '🎨' },
+      'Araling Panlipunan': { color: '#0d6e8a', icon: '🌐' },
+      'TLE':         { color: '#7a5500', icon: '🔧' },
+    };
+
+    const TERM_ORDER = ['1st Term', '2nd Term', '3rd Term', '4th Term'];
+    const TERM_LABELS = { '1st': '1st Term', '2nd': '2nd Term', '3rd': '3rd Term', '4th': '4th Term' };
+    const API_BASE = 'http://localhost:8000';
+
+    // ── Empty state ───────────────────────────────────────────────────────
+    if (!apiSubjects || !apiSubjects.length) {
+      return `
+        <div class="section-header">
+          <div class="section-header-left"><h2>My Subjects</h2><p>All enrolled subjects this term</p></div>
+        </div>
+        <div class="empty-state" style="margin-top:40px">
+          <div class="empty-state-icon">📭</div>
+          <div class="empty-state-title">No Subjects Yet</div>
+          <div class="empty-state-desc">You have not been enrolled in any subjects yet. Please contact your admin or adviser.</div>
+        </div>`;
+    }
+
+    // ── Index modules and activities by subject_id → term ─────────────────
+    const modulesBySubjectTerm = {};   // { subject_id: { '1st Term': [...], ... } }
+    (apiModules || []).forEach(m => {
+      const sid = m.subject_id;
+      const rawTerm = m.term || '';
+      const term = TERM_LABELS[rawTerm] || (rawTerm ? rawTerm + ' Term' : 'Other');
+      if (!modulesBySubjectTerm[sid]) modulesBySubjectTerm[sid] = {};
+      if (!modulesBySubjectTerm[sid][term]) modulesBySubjectTerm[sid][term] = [];
+      modulesBySubjectTerm[sid][term].push(m);
+    });
+
+    const activitiesBySubjectTerm = {};  // { subject_id: { '1st Term': [...], ... } }
+    (apiActivities || []).forEach(a => {
+      const sid = a.subject_id;
+      const rawTerm = a.term || '';
+      const term = TERM_LABELS[rawTerm] || (rawTerm ? rawTerm + ' Term' : 'Other');
+      if (!activitiesBySubjectTerm[sid]) activitiesBySubjectTerm[sid] = {};
+      if (!activitiesBySubjectTerm[sid][term]) activitiesBySubjectTerm[sid][term] = [];
+      activitiesBySubjectTerm[sid][term].push(a);
+    });
+
+    // ── Build term accordion content for a subject ────────────────────────
+    function buildTermContent(subjectId) {
+      const mByTerm = modulesBySubjectTerm[subjectId] || {};
+      const aByTerm = activitiesBySubjectTerm[subjectId] || {};
+      const allTerms = [...new Set([...Object.keys(mByTerm), ...Object.keys(aByTerm)])];
+      allTerms.sort((a, b) => {
+        const ia = TERM_ORDER.indexOf(a), ib = TERM_ORDER.indexOf(b);
+        return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+      });
+
+      if (!allTerms.length) {
+        return `<div class="subject-accordion-empty">
+          <span style="font-size:28px;opacity:.4">📭</span>
+          <p>No modules or activities posted yet for this subject.</p>
+        </div>`;
+      }
+
+      return allTerms.map(term => {
+        const modules   = mByTerm[term] || [];
+        const activites = aByTerm[term] || [];
+
+        const moduleRows = modules.map(m => {
+          const hasFile = !!m.file_url;
+          return `<div class="accordion-content-item">
+            <span class="acc-item-icon">📄</span>
+            <span class="acc-item-label">${escHtml(m.title)}${m.description ? '<span class="acc-item-desc">' + escHtml(m.description) + '</span>' : ''}</span>
+            ${hasFile
+              ? `<a class="btn btn-xs btn-primary" href="${API_BASE}${escHtml(m.file_url)}" target="_blank" rel="noopener">Open 📖</a>`
+              : `<span class="btn btn-xs btn-outline" style="opacity:.45;cursor:default;pointer-events:none">No file</span>`}
+          </div>`;
+        }).join('');
+
+        const TYPE_MAP = { quiz:'Quiz', long_quiz:'Long Quiz', task_performance:'Task Perf.', exam:'Exam', lab_exercise:'Lab', assignment:'Assignment', other:'Other' };
+        const actRows = activites.map(a => {
+          const typeLabel = TYPE_MAP[a.activity_type] || a.activity_type || 'Activity';
+          const statusColor = { open:'#2e6b3e', graded:'#1a4a8a', submitted:'#6a0dad', past_due:'#c00', not_open:'#888' }[a.status] || '#666';
+          const statusLabel = a.status_label || a.status || '';
+          const dueStr = a.due_date ? new Date(a.due_date).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'}) : '';
+          return `<div class="accordion-content-item">
+            <span class="acc-item-icon">📝</span>
+            <span class="acc-item-label">${escHtml(a.title || a.activity_type)}
+              <span class="acc-item-desc">${escHtml(typeLabel)}${dueStr ? ' · Due: ' + dueStr : ''}</span>
+            </span>
+            <span style="font-size:11px;font-weight:600;color:${statusColor};white-space:nowrap">${escHtml(statusLabel)}</span>
+          </div>`;
+        }).join('');
+
+        return `<div class="accordion-term-section">
+          <div class="accordion-term-heading">
+            <span class="acc-term-badge">${escHtml(term)}</span>
+            <span class="acc-term-counts">${modules.length} module${modules.length !== 1 ? 's' : ''} · ${activites.length} activit${activites.length !== 1 ? 'ies' : 'y'}</span>
+          </div>
+          ${modules.length ? '<div class="acc-section-label">📚 Modules</div>' + moduleRows : ''}
+          ${activites.length ? '<div class="acc-section-label">📝 Activities</div>' + actRows : ''}
+        </div>`;
+      }).join('');
+    }
+
+    // ── Subject accordion cards ───────────────────────────────────────────
+    const cards = apiSubjects.map((s, idx) => {
+      const style   = NAMED[s.subject_name] || PALETTE[idx % PALETTE.length];
+      const sid     = s.subject_id;
+      const mCount  = (apiModules   || []).filter(m => m.subject_id === sid).length;
+      const aCount  = (apiActivities || []).filter(a => a.subject_id === sid).length;
+
+      return `
+        <div class="student-subject-card" data-searchable data-subject-id="${sid}">
+          <div class="student-subject-card-header">
+            <div style="width:44px;height:44px;border-radius:10px;background:${style.color};display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">${style.icon}</div>
+            <div class="subject-info" style="flex:1">
+              <div class="subject-name">${escHtml(s.subject_name)}</div>
+              <div class="subject-teacher">
+                Class: <strong>${escHtml(s.class_name || '—')}</strong>
+                <span style="margin-left:10px;font-size:11px;color:var(--gray-400)">
+                  ${mCount} module${mCount !== 1 ? 's' : ''} · ${aCount} activit${aCount !== 1 ? 'ies' : 'y'}
+                </span>
+              </div>
+            </div>
+            <span class="accordion-chevron" style="font-size:18px;color:var(--gray-400);transition:transform .25s;flex-shrink:0">▾</span>
+          </div>
+          <div class="subject-accordion-body" style="max-height:0;overflow:hidden;transition:max-height .3s ease">
+            <div class="subject-accordion-inner">
+              ${buildTermContent(sid)}
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+
     return `
-      <div class="section-header"><div class="section-header-left"><h2>My Subjects</h2><p>All enrolled subjects this term</p></div></div>
-      <div class="subject-list">${subjects.map(s => {
-        const teacher = userModel.getById(s.teacherId);
-        return `<div class="subject-item"><div class="subject-color-dot" style="background:${s.color};width:16px;height:16px"></div><div style="font-size:30px">${s.icon}</div><div class="subject-info"><div class="subject-name">${escHtml(s.name)}</div><div class="subject-teacher">Teacher: ${escHtml(teacher ? teacher.name : '?')} · ${escHtml(s.description || '')}</div></div><div style="display:flex;gap:8px;align-items:center"><span class="badge badge-maroon">${moduleModel.getBySubject(s.id).length} modules</span><span class="badge badge-gold">${activityModel.getBySubject(s.id).length} activities</span></div></div>`;
-      }).join('')}</div>`;
+      <div class="section-header">
+        <div class="section-header-left">
+          <h2>My Subjects</h2>
+          <p>${apiSubjects.length} enrolled subject${apiSubjects.length !== 1 ? 's' : ''} · click a subject to expand</p>
+        </div>
+        <div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search subjects…" /></div>
+      </div>
+      <div class="subject-list" id="student-subjects-list">${cards}</div>`;
   },
 
   modules(apiModules = null) {

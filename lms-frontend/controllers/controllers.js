@@ -273,6 +273,26 @@ const DashboardController = {
       return;
     }
 
+    // Student My Subjects
+    if (sectionId === 'my-subjects' && this.currentUser.role === 'student') {
+      Promise.all([
+        api.getStudentSubjects(),
+        api.getStudentModules(),
+        api.getStudentActivities(),
+      ])
+        .then(([subjects, modules, activities]) => {
+          const area = document.getElementById('content-area');
+          area.innerHTML = StudentView.mySubjects(subjects, modules, activities);
+          StudentController._attachSubjectAccordion();
+          this._attachSearch();
+        })
+        .catch(err => {
+          console.error('Failed to load student subjects:', err);
+          Toast.show('Could not load your subjects.', 'error');
+        });
+      return;
+    }
+
     if (sectionId === 'calendar') {
       CalendarController._selectedDate = null;
       CalendarController.init();
@@ -300,13 +320,20 @@ const DashboardController = {
 
     // Student modules
     if (sectionId === 'modules' && this.currentUser.role === 'student') {
-      Promise.all([api.getStudentSubjects(), api.getStudentModules()])
+      const filterSubjectId = window._filterSubjectId || null;
+      delete window._filterSubjectId;
+      Promise.all([api.getStudentSubjects(), api.getStudentModules(filterSubjectId)])
         .then(([subjects, modules]) => {
           const subjectMap = {};
           subjects.forEach(s => { subjectMap[s.subject_id] = s.subject_name; });
           modules.forEach(m => { m._subject_name = subjectMap[m.subject_id] || 'Unknown'; });
           const area = document.getElementById('content-area');
           area.innerHTML = StudentView.modules(modules);
+          // If we arrived here from a subject card, surface a filter hint
+          if (filterSubjectId) {
+            const subjectName = subjectMap[filterSubjectId];
+            if (subjectName) Toast.show(`Showing modules for: ${subjectName}`, 'info');
+          }
           this._attachSearch();
         })
         .catch(err => {
@@ -1908,6 +1935,49 @@ const TeacherController = {
    ══════════════════════════════════════════════════════════════ */
 const StudentController = {
   _currentActivity: null,   // activity detail object (with questions)
+
+  // ── Attach click-to-expand accordion on My Subjects cards ─────────────────
+  _attachSubjectAccordion() {
+    const _closeCard = (c) => {
+      const body = c.querySelector('.subject-accordion-body');
+      // Pin current height before collapsing (enables smooth transition from "none")
+      body.style.maxHeight = body.scrollHeight + 'px';
+      requestAnimationFrame(() => {
+        body.style.transition = 'max-height 0.3s ease';
+        body.style.maxHeight = '0';
+      });
+      c.classList.remove('accordion-open');
+      const chevron = c.querySelector('.accordion-chevron');
+      if (chevron) chevron.style.transform = 'rotate(0deg)';
+    };
+
+    const _openCard = (c) => {
+      const body = c.querySelector('.subject-accordion-body');
+      body.style.transition = 'max-height 0.35s ease';
+      body.style.maxHeight = body.scrollHeight + 'px';
+      // After transition, set to 'none' so content can grow (e.g. dynamic content)
+      body.addEventListener('transitionend', () => {
+        if (c.classList.contains('accordion-open')) {
+          body.style.maxHeight = 'none';
+        }
+      }, { once: true });
+      c.classList.add('accordion-open');
+      const chevron = c.querySelector('.accordion-chevron');
+      if (chevron) chevron.style.transform = 'rotate(180deg)';
+    };
+
+    document.querySelectorAll('.student-subject-card').forEach(card => {
+      card.addEventListener('click', (e) => {
+        // Don't collapse if clicking a button/link inside
+        if (e.target.closest('a, button')) return;
+        const isOpen = card.classList.contains('accordion-open');
+        // Close all open cards
+        document.querySelectorAll('.student-subject-card.accordion-open').forEach(c => _closeCard(c));
+        // Toggle: open this one if it was closed
+        if (!isOpen) _openCard(card);
+      });
+    });
+  },
 
   // ── Load & display the activity list ──────────────────────────────────────
   loadActivities() {
