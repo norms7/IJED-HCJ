@@ -5,7 +5,8 @@
    ============================================================ */
 
 "use strict";
-const api = new LMSAdminAPI("https://ijed-hcj-1.onrender.com");
+//const api = new LMSAdminAPI("https://ijed-hcj-1.onrender.com");
+const api = new LMSAdminAPI("http://localhost:8000");
 
 /* ══════════════════════════════════════════════════════════════
    APP CONTROLLER
