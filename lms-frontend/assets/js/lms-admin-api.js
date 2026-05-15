@@ -13,8 +13,8 @@ class LMSAdminAPI {
   /**
    * @param {string} baseURL - e.g. "https://ijed-hcj-1.onrender.com"
    */
-  constructor(baseURL = "https://ijed-hcj-1.onrender.com") {
-  //constructor(baseURL = "http://localhost:8000"){
+  //constructor(baseURL = "https://ijed-hcj-1.onrender.com") {
+  constructor(baseURL = "http://localhost:8000"){
     this.baseURL = baseURL.replace(/\/$/, "");
     this.token = localStorage.getItem("lms_token") || null;
   }
@@ -492,6 +492,23 @@ class LMSAdminAPI {
     return this._request("GET", `/student/me/activities/${activityId}/result`);
   }
 
+  /**
+   * Get aggregated student dashboard stats.
+   * Returns: { enrolled_subjects, modules: {done, total}, activities: {done, total}, average_score }
+   */
+  async getStudentDashboardStats() {
+    return this._request("GET", "/student/me/dashboard");
+  }
+
+  /**
+   * Mark a module as read by the current student.
+   * Triggers progress tracking for the dashboard modules counter.
+   * @param {number} moduleId
+   */
+  async markModuleRead(moduleId) {
+    return this._request("POST", `/student/me/modules/${moduleId}/read`);
+  }
+
   // ── Legacy / utility ──────────────────────────────────────────────────────
 
   async request(method, path, body) {
@@ -511,4 +528,28 @@ class LMSAdminAPI {
     }
     return res.json();
   }
+
+  // ── Notifications ──────────────────────────────────────────────────────────
+
+  async getNotifications(limit = 20, offset = 0, unreadOnly = false) {
+    return this._request("GET", `/notifications?limit=${limit}&offset=${offset}&unread_only=${unreadOnly}`);
+  }
+
+  async markNotificationRead(notifId) {
+    return this._request("PATCH", `/notifications/${notifId}/read`);
+  }
+
+  async markAllNotificationsRead() {
+    return this._request("PATCH", `/notifications/mark-all-read`);
+  }
+
+  async deleteNotification(notifId) {
+    return this._request("DELETE", `/notifications/${notifId}`);
+  }
+
+  async sendAnnouncement(title, message, target = "all") {
+    return this._request("POST", "/notifications/announce", { title, message, target });
+  }
 }
+
+const api = new LMSAdminAPI();
