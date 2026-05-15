@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="assets/css/main.css" />
   <link rel="stylesheet" href="assets/css/components.css" />
   <link rel="stylesheet" href="assets/css/layout.css" />
+  <link rel="stylesheet" href="assets/css/notifications.css" />
 </head>
 <body>
 
@@ -45,8 +46,10 @@
       </div>
     </div>
     <div class="nav-links">
-      <a href="#features" class="nav-link">Features</a>
-      <a href="#roles"    class="nav-link">Roles</a>
+      <a href="#features"  class="nav-link">Features</a>
+      <a href="#roles"     class="nav-link">Roles</a>
+      <a href="#about"     class="nav-link">About Us</a>
+      <a href="#contact"   class="nav-link">Contact</a>
       <button class="btn btn-gold btn-sm" onclick="App.showPage('login')">Login</button>
     </div>
   </nav>
@@ -164,10 +167,94 @@
     </div>
   </section>
 
+  <!-- ── About Us ─────────────────────────────────────────────── -->
+  <section class="about-section" id="about" aria-label="About Us">
+    <div class="about-inner">
+      <div class="section-label">WHO WE ARE</div>
+      <h2 class="section-title">About Infant Jesus Learning Academy</h2>
+      <p class="about-desc">
+        Infant Jesus Learning Academy (IJED) is a Catholic educational institution committed to
+        forming well-rounded individuals rooted in faith, excellence, and service. Founded with
+        the mission of providing quality education, IJED nurtures students in a caring and
+        disciplined environment.
+      </p>
+      <div class="about-cards">
+        <div class="about-card">
+          <div class="about-card-icon">⛪</div>
+          <div class="about-card-title">Our Mission</div>
+          <div class="about-card-desc">
+            To provide holistic, values-based education that empowers every learner to achieve
+            academic excellence and become a responsible member of society.
+          </div>
+        </div>
+        <div class="about-card">
+          <div class="about-card-icon">👁️</div>
+          <div class="about-card-title">Our Vision</div>
+          <div class="about-card-desc">
+            To be a leading Catholic learning institution that produces globally competitive,
+            morally upright, and socially responsible graduates.
+          </div>
+        </div>
+        <div class="about-card">
+          <div class="about-card-icon">✝️</div>
+          <div class="about-card-title">Our Values</div>
+          <div class="about-card-desc">
+            Faith, integrity, excellence, compassion, and service are the core values that
+            guide every student, teacher, and staff member of IJED.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Contact ───────────────────────────────────────────────── -->
+  <section class="contact-section" id="contact" aria-label="Contact Us">
+    <div class="contact-inner">
+      <div class="section-label" style="color:var(--gold-light)">GET IN TOUCH</div>
+      <h2 class="section-title" style="color:#fff">Contact Us</h2>
+      <div class="contact-cards">
+
+        <div class="contact-card">
+          <div class="contact-card-icon">📍</div>
+          <div class="contact-card-title">Address</div>
+          <div class="contact-card-desc">
+            Malabon City Branch: Pampano cor. Maya-maya St. Longos, Malabon City<br>
+            Quezon City Branch: 70 Mendoza St. Brgy. Paltok, Quezon City<br>
+          </div>
+        </div>
+
+        <div class="contact-card">
+          <div class="contact-card-icon">📞</div>
+          <div class="contact-card-title">Phone &amp; Email</div>
+          <div class="contact-card-desc">
+            📱 IJLAM: 8332-8310 / 0917-8982780<br>
+            IJLAQC: 2837-34581<br>
+            ✉️ ijlamalaboncity@gmail.com ijla.quezoncity@gmail.com<br>
+            🕐 Mon–Fri, 7AM–5PM
+          </div>
+        </div>
+
+        <div class="contact-card">
+          <div class="contact-card-icon">🌐</div>
+          <div class="contact-card-title">Follow Us</div>
+          <div class="contact-card-desc">
+            <a href="https://www.facebook.com/ijlamalaboncity" target="_blank" rel="noopener" class="contact-link">
+              📘 Facebook — Malabon Branch
+            </a>
+            <a href="https://www.facebook.com/IJLAQC" target="_blank" rel="noopener" class="contact-link">
+              📘 Facebook — Quezon City Branch
+            </a>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
   <!-- Footer -->
   <footer class="landing-footer">
     <p>© 2025 <strong>Infant Jesus Learning Academy</strong>. All rights reserved. | Learning Management System</p>
-    <p>4K Norms</p>
+    <p style="font-size:11px;opacity:.6;margin-top:4px">4K Norms</p>
   </footer>
 
 </div><!-- /#page-landing -->
@@ -182,11 +269,9 @@
 
     <!-- Logo / Branding -->
     <div class="login-logo">
-      <img src="assets/images/logo.png" alt="IJED Logo" class="login-logo-icon" style="width:64px;height:64px;object-fit:contain;border-radius:50%;" />
-      <div>
-        <div class="login-school-name">Infant Jesus</div>
-        <div class="login-school-sub">Learning Academy</div>
-      </div>
+      <img src="assets/images/logo.png" alt="IJED Logo" class="login-logo-icon" style="width:72px;height:72px;object-fit:contain;border-radius:50%;" />
+      <div class="login-school-name">Infant Jesus</div>
+      <div class="login-school-sub">Learning Academy</div>
     </div>
 
     <h1 class="login-title">Welcome Back!</h1>
@@ -241,12 +326,6 @@
       onclick="AuthController.login()">
       Sign In
     </button>
-
-    <!-- Demo Credentials Hint -->
-    <div class="demo-hint" id="demo-hint">
-      <strong>Demo (Admin):</strong>
-      <code>admin@ijla.edu</code> / <code>admin123</code>
-    </div>
 
     <!-- Back Link -->
     <div class="login-back">
@@ -311,8 +390,29 @@
         <button id="dark-mode-toggle" onclick="DarkMode.toggle()" title="Toggle night mode"
           style="width:36px;height:36px;border-radius:var(--radius-sm);border:none;background:var(--gray-100);color:var(--gray-600);display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;transition:all var(--transition);">🌙</button>
         <span class="topbar-time" id="topbar-time" aria-label="Current time"></span>
-        <div class="topbar-avatar" id="topbar-avatar"
-          title="Your profile" aria-label="Profile avatar">A</div>
+        <div class="topbar-avatar-wrapper" id="topbar-avatar-wrapper">
+          <div class="topbar-avatar" id="topbar-avatar"
+            onclick="App.toggleProfileMenu()"
+            title="Your profile" aria-label="Profile menu">A</div>
+          <div class="profile-dropdown" id="profile-dropdown">
+            <div class="profile-dropdown-header">
+              <div class="profile-dropdown-avatar" id="profile-dd-avatar">A</div>
+              <div>
+                <div class="profile-dropdown-name" id="profile-dd-name">User</div>
+                <div class="profile-dropdown-role" id="profile-dd-role">—</div>
+              </div>
+            </div>
+            <div class="profile-dropdown-divider"></div>
+            <button class="profile-dropdown-item" onclick="App.toggleProfileMenu(); DarkMode.toggle()">
+              🌙 Toggle Dark Mode
+            </button>
+            <div class="profile-dropdown-divider"></div>
+            <button class="profile-dropdown-item profile-dropdown-logout"
+              onclick="App.toggleProfileMenu(); AuthController.logout()">
+              🚪 Sign Out
+            </button>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -332,13 +432,32 @@
      4. Controllers (logic)
      5. app.js  (bootstrap)
      ════════════════════════════════════════════════════════════ -->
+<!-- API layer — MUST be first -->
 <script src="assets/js/lms-admin-api.js"></script>
 
+<!-- Data models -->
 <script src="models/models.js"></script>
-<script src="utils/utils.js"></script>
-<script src="views/views.js"></script>
-<script src="controllers/controllers.js"></script>
-<script src="assets/js/app.js"></script>
 
+<!-- Shared utilities -->
+<script src="utils/utils.js"></script>
+
+<!-- Views (role-scoped) -->
+<script src="views/admin.view.js"></script>
+<script src="views/teacher.view.js"></script>
+<script src="views/student.view.js"></script>
+<script src="views/calendar.view.js"></script>
+
+<!-- Controllers (role-scoped) -->
+<script src="controllers/app.controller.js"></script>
+<script src="controllers/auth.controller.js"></script>
+<script src="controllers/admin.controller.js"></script>
+<script src="controllers/teacher.controller.js"></script>
+<script src="controllers/student.controller.js"></script>
+<script src="controllers/calendar.controller.js"></script>
+<script src="controllers/notification.controller.js"></script>
+<script src="controllers/dashboard.controller.js"></script>
+
+<!-- Bootstrap -->
+<script src="assets/js/app.js"></script>
 </body>
 </html>
