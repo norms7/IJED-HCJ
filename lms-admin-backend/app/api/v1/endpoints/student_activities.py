@@ -504,6 +504,41 @@ async def submit_activity(
     await db.flush()
     await db.refresh(submission, ["answers"])
 
+    # ── Notify the teacher that a student has submitted ───────────────────
+    from app.services.notification_service import NotificationService
+    from app.models.models import User as UserModel
+    user_result = await db.execute(
+        select(UserModel).where(UserModel.id == student.user_id)
+    )
+    user_obj = user_result.scalar_one_or_none()
+    student_name = f"{user_obj.first_name} {user_obj.last_name}" if user_obj else f"Student #{student.id}"
+
+    teacher_user_id = await NotificationService.get_teacher_user_id_for_activity(db, activity)
+    if teacher_user_id:
+        await NotificationService.notify(
+            db,
+            target_user_id=teacher_user_id,
+            actor_user_id=student.user_id,
+            notification_type="submission_received",
+            title="New Submission",
+            message=f"{student_name} submitted '{activity.title}'.",
+            link_type="activity",
+            link_id=activity.id,
+        )
+
+    # Also notify all admins
+    admin_user_ids = await NotificationService.get_admin_user_ids(db)
+    await NotificationService.notify_many(
+        db,
+        target_user_ids=admin_user_ids,
+        notification_type="submission_received",
+        title="New Submission",
+        message=f"{student_name} submitted '{activity.title}'.",
+        actor_user_id=student.user_id,
+        link_type="activity",
+        link_id=activity.id,
+    )
+
     return {
         "id":           submission.id,
         "activity_id":  submission.activity_id,

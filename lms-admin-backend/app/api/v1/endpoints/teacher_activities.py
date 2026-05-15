@@ -178,6 +178,37 @@ async def create_activity(
     for q in activity.questions:
         await db.refresh(q, ["choices"])
 
+    # ── Notify enrolled students about the new activity ───────────────────
+    if body.is_published:
+        from app.services.notification_service import NotificationService
+        effective_subject_id = body.subject_id or module.subject_id
+        if effective_subject_id:
+            student_user_ids = await NotificationService.get_enrolled_student_user_ids(
+                db, effective_subject_id
+            )
+            await NotificationService.notify_many(
+                db,
+                target_user_ids=student_user_ids,
+                notification_type="activity_created",
+                title="New Activity Posted",
+                message=f"A new activity '{body.title}' has been posted.",
+                actor_user_id=teacher.user_id,
+                link_type="activity",
+                link_id=activity.id,
+            )
+        # Notify admins
+        admin_user_ids = await NotificationService.get_admin_user_ids(db)
+        await NotificationService.notify_many(
+            db,
+            target_user_ids=admin_user_ids,
+            notification_type="activity_created",
+            title="Activity Created",
+            message=f"Teacher created activity '{body.title}'.",
+            actor_user_id=teacher.user_id,
+            link_type="activity",
+            link_id=activity.id,
+        )
+
     return await _build_activity_out(activity, db)
 
 
@@ -403,4 +434,41 @@ async def manual_grade(
     submission.is_graded = True
     await db.flush()
     await db.refresh(submission, ["answers"])
+
+    # ── Notify the student that their activity has been graded ────────────
+    from app.services.notification_service import NotificationService
+    from app.models.models import Student
+    student_result = await db.execute(
+        select(Student).where(Student.id == submission.student_id)
+    )
+    student = student_result.scalar_one_or_none()
+    if student:
+        score_str = f"{submission.score}/{submission.max_score}" if submission.max_score else str(submission.score)
+        await NotificationService.notify(
+            db,
+            target_user_id=student.user_id,
+            actor_user_id=teacher.user_id,
+            notification_type="activity_graded",
+            title="Activity Graded",
+            message=f"Your submission for '{activity.title}' has been graded: {score_str}.",
+            link_type="activity",
+            link_id=activity.id,
+        )
+        # Notify admins of the grading event
+        from app.models.models import User as UserModel
+        student_user = await db.execute(select(UserModel).where(UserModel.id == student.user_id))
+        student_user = student_user.scalar_one_or_none()
+        student_name = f"{student_user.first_name} {student_user.last_name}" if student_user else f"Student #{student.id}"
+        admin_user_ids = await NotificationService.get_admin_user_ids(db)
+        await NotificationService.notify_many(
+            db,
+            target_user_ids=admin_user_ids,
+            notification_type="activity_graded",
+            title="Activity Graded",
+            message=f"Teacher graded '{activity.title}' for {student_name}: {score_str}.",
+            actor_user_id=teacher.user_id,
+            link_type="activity",
+            link_id=activity.id,
+        )
+
     return submission

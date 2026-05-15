@@ -17,6 +17,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.config import settings
 from app.api.v1.router import api_router
+from app.api.v1.endpoints.notifications import notif_router
 
 
 # ── Lifespan (startup / shutdown) ─────────────────────────────────────────────
@@ -80,6 +81,9 @@ app.include_router(api_router, prefix="/api/v1")
 
 # Convenience: also mount without /api/v1 prefix for direct /auth/login etc.
 app.include_router(api_router)
+
+# Notifications mounted ONCE directly to avoid double-mount route conflicts
+app.include_router(notif_router)
 
 
 @app.get("/", tags=["Health"])
