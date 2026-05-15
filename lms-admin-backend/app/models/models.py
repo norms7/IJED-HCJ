@@ -244,27 +244,6 @@ class Module(Base):
 
 # ── activities ────────────────────────────────────────────────────────────────
 
-"""
-APPEND these model classes to app/models/models.py
-(after the existing Activity class)
-
-format_type values:   multiple_choice | freeform | checkbox | enumeration | assignment | hybrid
-grading_mode values:  auto | manual
-activity_type values: quiz | long_quiz | task_performance | exam | lab_exercise | other | assignment
-"""
-
-import json
-from typing import Optional
-from datetime import datetime, timezone
-
-from sqlalchemy import (
-    Boolean, DateTime, ForeignKey, Integer, String, Text,
-    UniqueConstraint, Index, func,
-)
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-# ── Extend Activity (add these columns) ────────────────────────────────────────
-# In models.py, replace the existing Activity class with this full version:
 
 class Activity(Base):
     __tablename__ = "activities"
@@ -397,3 +376,60 @@ class ActivityAnswer(Base):
 
     submission: Mapped["ActivitySubmission"] = relationship("ActivitySubmission", back_populates="answers")
     question: Mapped["ActivityQuestion"] = relationship("ActivityQuestion", back_populates="answers")
+
+# ── StudentModuleRead ──────────────────────────────────────────────────────────
+
+class StudentModuleRead(Base):
+    """Tracks when a student opens/reads a module. One row per student+module."""
+    __tablename__ = "student_module_reads"
+    __table_args__ = (
+        UniqueConstraint("student_id", "module_id", name="uq_student_module_read"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
+    module_id: Mapped[int] = mapped_column(ForeignKey("modules.id", ondelete="CASCADE"), nullable=False)
+    first_read_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_read_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    student: Mapped["Student"] = relationship("Student")
+    module: Mapped["Module"] = relationship("Module")
+
+
+# ── Notification ───────────────────────────────────────────────────────────────
+
+class Notification(Base):
+    """
+    Persistent notification for any user.
+
+    actor_user_id  – who triggered the action (teacher, student, admin). Nullable for system msgs.
+    target_user_id – who receives the notification (always set).
+
+    notification_type examples:
+      module_uploaded      – teacher uploaded a module
+      activity_created     – teacher created an activity
+      activity_graded      – teacher graded a student's submission
+      submission_received  – student submitted an activity (notifies teacher)
+      announcement         – admin broadcast to all / role-group
+    """
+    __tablename__ = "notifications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    target_user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    actor_user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    notification_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    link_type: Mapped[Optional[str]] = mapped_column(String(50))   # e.g. "module", "activity"
+    link_id: Mapped[Optional[int]] = mapped_column(Integer)         # id of the related object
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    target_user: Mapped["User"] = relationship("User", foreign_keys=[target_user_id])
+    actor_user:  Mapped[Optional["User"]] = relationship("User", foreign_keys=[actor_user_id])

@@ -261,6 +261,37 @@ async def create_my_module(
     await db.flush()
     await db.refresh(module, ["activities"])
 
+    # ── Notify enrolled students about the new module ─────────────────────
+    if is_published:
+        from app.services.notification_service import NotificationService
+        student_user_ids = await NotificationService.get_enrolled_student_user_ids(db, subject_id)
+        subject_name = next(
+            (a.subject.name for a in teacher.class_assignments if a.subject_id == subject_id),
+            "your subject"
+        )
+        await NotificationService.notify_many(
+            db,
+            target_user_ids=student_user_ids,
+            notification_type="module_uploaded",
+            title="New Module Available",
+            message=f"A new module '{title}' has been uploaded for {subject_name}.",
+            actor_user_id=teacher.user_id,
+            link_type="module",
+            link_id=module.id,
+        )
+        # Also notify admins
+        admin_user_ids = await NotificationService.get_admin_user_ids(db)
+        await NotificationService.notify_many(
+            db,
+            target_user_ids=admin_user_ids,
+            notification_type="module_uploaded",
+            title="Module Uploaded",
+            message=f"Teacher uploaded '{title}' for {subject_name}.",
+            actor_user_id=teacher.user_id,
+            link_type="module",
+            link_id=module.id,
+        )
+
     out = ModuleOut.model_validate(module)
     out.activity_count = 0
     return out
