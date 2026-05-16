@@ -31,7 +31,7 @@ const NotificationController = {
   // ── Build bell icon HTML into the topbar ─────────────────────────────────
   _buildBellUI() {
     const topbarRight = document.querySelector(".topbar-right");
-    if (!topbarRight || document.getElementById("notif-bell-btn")) return;
+    if (!topbarRight || document.getElementById("notif-bell-btn")) return; // already built
 
     // Insert bell before the dark mode toggle
     const bellHTML = `
@@ -247,3 +247,9 @@ const NotificationController = {
     this._retryCount = 0;
   },
 };
+
+// Build the bell HTML into the topbar as soon as the DOM is ready,
+// regardless of login state — so it's always present on first paint.
+document.addEventListener('DOMContentLoaded', () => {
+  NotificationController._buildBellUI();
+});
