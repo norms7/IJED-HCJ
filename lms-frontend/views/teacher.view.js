@@ -107,7 +107,7 @@ const TeacherView = {
       'Filipino':    { color: '#c04a00', icon: '🇵🇭' },
       'MAPEH':       { color: '#6a0dad', icon: '🎨' },
     };
-    const API_BASE = 'http://localhost:8000';
+    const API_BASE = 'https://ijed-hcj-1.onrender.com';
 
     const cards = apiModules.map(m => {
       const style   = SUBJECT_STYLES[m._subject_name] || { color: 'var(--maroon)', icon: '📚' };

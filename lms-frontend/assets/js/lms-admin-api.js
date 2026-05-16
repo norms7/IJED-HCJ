@@ -62,6 +62,7 @@ class LMSAdminAPI {
     this.token = null;
     localStorage.removeItem("lms_token");
     localStorage.removeItem("lms_user");
+    localStorage.removeItem("ijla_session");
   }
 
   isLoggedIn() {
@@ -79,6 +80,7 @@ class LMSAdminAPI {
       role:      data.role,
       full_name: data.full_name,
       name:      data.full_name,
+      email:     email,
       _token:    data.access_token,
     };
 
@@ -552,4 +554,4 @@ class LMSAdminAPI {
   }
 }
 
-const api = new LMSAdminAPI();
+const api = new LMSAdminAPI();  
