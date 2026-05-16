@@ -176,7 +176,7 @@ const StudentView = {
     };
     const TERM_ORDER  = ['1st Term', '2nd Term', '3rd Term', '4th Term'];
     const TERM_LABELS = { '1st': '1st Term', '2nd': '2nd Term', '3rd': '3rd Term', '4th': '4th Term' };
-    const API_BASE    = 'http://localhost:8000';
+    const API_BASE    = 'https://ijed-hcj-1.onrender.com';
 
     if (!apiSubjects || !apiSubjects.length) {
       return `
@@ -320,7 +320,7 @@ const StudentView = {
       'Filipino':    { color: '#c04a00', icon: '🇵🇭' },
       'MAPEH':       { color: '#6a0dad', icon: '🎨' },
     };
-    const API_BASE = 'http://localhost:8000';
+    const API_BASE = 'https://ijed-hcj-1.onrender.com';
 
     const cards = apiModules.map(m => {
       const style     = SUBJECT_STYLES[m._subject_name] || { color: 'var(--maroon)', icon: '📚' };
