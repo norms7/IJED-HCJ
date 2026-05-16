@@ -66,19 +66,20 @@ const App = {
   populateProfileDropdown(session) {
     const name  = session.full_name || session.name || 'User';
     const role  = (session.role || '').charAt(0).toUpperCase() + (session.role || '').slice(1);
+    const email = session.email || '—';
     const init  = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
-    // Topbar avatar initials
     const av = document.getElementById('topbar-avatar');
     if (av) av.textContent = init;
 
-    // Dropdown content
-    const ddAv   = document.getElementById('profile-dd-avatar');
-    const ddName = document.getElementById('profile-dd-name');
-    const ddRole = document.getElementById('profile-dd-role');
-    if (ddAv)   ddAv.textContent   = init;
-    if (ddName) ddName.textContent = name;
-    if (ddRole) ddRole.textContent = role;
+    const ddAv    = document.getElementById('profile-dd-avatar');
+    const ddName  = document.getElementById('profile-dd-name');
+    const ddRole  = document.getElementById('profile-dd-role');
+    const ddEmail = document.getElementById('profile-dd-email');
+    if (ddAv)    ddAv.textContent    = init;
+    if (ddName)  ddName.textContent  = name;
+    if (ddRole)  ddRole.textContent  = role;
+    if (ddEmail) ddEmail.textContent = email;
   },
 
   /** Toggle profile dropdown open/close */

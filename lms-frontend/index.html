@@ -218,8 +218,9 @@
           <div class="contact-card-icon">📍</div>
           <div class="contact-card-title">Address</div>
           <div class="contact-card-desc">
-            Malabon City Branch: Pampano cor. Maya-maya St. Longos, Malabon City<br>
-            Quezon City Branch: 70 Mendoza St. Brgy. Paltok, Quezon City<br>
+            Infant Jesus Learning Academy<br>
+            Malabon City &amp; Quezon City Branch<br>
+            Philippines
           </div>
         </div>
 
@@ -227,9 +228,8 @@
           <div class="contact-card-icon">📞</div>
           <div class="contact-card-title">Phone &amp; Email</div>
           <div class="contact-card-desc">
-            📱 IJLAM: 8332-8310 / 0917-8982780<br>
-            IJLAQC: 2837-34581<br>
-            ✉️ ijlamalaboncity@gmail.com ijla.quezoncity@gmail.com<br>
+            📱 +63 900 000 0000<br>
+            ✉️ info@ijed.edu.ph<br>
             🕐 Mon–Fri, 7AM–5PM
           </div>
         </div>
@@ -387,8 +387,6 @@
         <span class="topbar-page-title" id="topbar-title">Dashboard</span>
       </div>
       <div class="topbar-right">
-        <button id="dark-mode-toggle" onclick="DarkMode.toggle()" title="Toggle night mode"
-          style="width:36px;height:36px;border-radius:var(--radius-sm);border:none;background:var(--gray-100);color:var(--gray-600);display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;transition:all var(--transition);">🌙</button>
         <span class="topbar-time" id="topbar-time" aria-label="Current time"></span>
         <div class="topbar-avatar-wrapper" id="topbar-avatar-wrapper">
           <div class="topbar-avatar" id="topbar-avatar"
@@ -397,14 +395,21 @@
           <div class="profile-dropdown" id="profile-dropdown">
             <div class="profile-dropdown-header">
               <div class="profile-dropdown-avatar" id="profile-dd-avatar">A</div>
-              <div>
+              <div style="min-width:0">
                 <div class="profile-dropdown-name" id="profile-dd-name">User</div>
                 <div class="profile-dropdown-role" id="profile-dd-role">—</div>
+                <div class="profile-dropdown-email" id="profile-dd-email">—</div>
               </div>
             </div>
             <div class="profile-dropdown-divider"></div>
             <button class="profile-dropdown-item" onclick="App.toggleProfileMenu(); DarkMode.toggle()">
               🌙 Toggle Dark Mode
+            </button>
+            <button class="profile-dropdown-item" onclick="App.toggleProfileMenu()">
+              ⚙️ Settings
+            </button>
+            <button class="profile-dropdown-item" onclick="App.toggleProfileMenu()">
+              ❓ Report / Help
             </button>
             <div class="profile-dropdown-divider"></div>
             <button class="profile-dropdown-item profile-dropdown-logout"
@@ -448,16 +453,16 @@
 <script src="views/calendar.view.js"></script>
 
 <!-- Controllers (role-scoped) -->
+<script src="controllers/notification.controller.js"></script>
 <script src="controllers/app.controller.js"></script>
 <script src="controllers/auth.controller.js"></script>
 <script src="controllers/admin.controller.js"></script>
 <script src="controllers/teacher.controller.js"></script>
 <script src="controllers/student.controller.js"></script>
 <script src="controllers/calendar.controller.js"></script>
-<script src="controllers/notification.controller.js"></script>
 <script src="controllers/dashboard.controller.js"></script>
 
 <!-- Bootstrap -->
 <script src="assets/js/app.js"></script>
 </body>
-</html> 
+</html>
