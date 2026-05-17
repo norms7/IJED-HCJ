@@ -11,11 +11,16 @@
 
 class LMSAdminAPI {
   /**
-   * @param {string} baseURL - e.g. "https://ijed-hcj-1.onrender.com"
+   * Auto-detects backend URL:
+   *   localhost / 127.0.0.1  →  http://localhost:8000  (local dev)
+   *   any other host         →  https://ijed-hcj-1.onrender.com  (production)
    */
-  constructor(baseURL = "https://ijed-hcj-1.onrender.com") {
-  //constructor(baseURL = "http://localhost:8000"){
-    this.baseURL = baseURL.replace(/\/$/, "");
+  constructor() {
+    const isLocal = window.location.hostname === "localhost" ||
+                    window.location.hostname === "127.0.0.1";
+    this.baseURL = isLocal
+      ? "http://localhost:8000"
+      : "https://ijed-hcj-1.onrender.com";
     this.token = localStorage.getItem("lms_token") || null;
   }
 
@@ -554,4 +559,4 @@ class LMSAdminAPI {
   }
 }
 
-const api = new LMSAdminAPI();  
+const api = new LMSAdminAPI();

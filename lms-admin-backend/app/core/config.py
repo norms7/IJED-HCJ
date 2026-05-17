@@ -1,3 +1,4 @@
+import os
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 
@@ -8,12 +9,19 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
 
-    # CORS origins — space-separated in .env, split here
-    CORS_ORIGINS: str = "http://localhost:3000 http://localhost:5500 http://127.0.0.1:5500"
+    # CORS origins — comma OR space separated in env var
+    CORS_ORIGINS: str = (
+        "http://localhost:3000 "
+        "http://localhost:5500 "
+        "http://127.0.0.1:5500 "
+        "https://ijedlms.vercel.app"
+    )
 
     @property
     def cors_origins_list(self) -> list[str]:
-        return self.CORS_ORIGINS.split()
+        # Support both comma-separated and space-separated values
+        raw = self.CORS_ORIGINS.replace(",", " ")
+        return [o.strip() for o in raw.split() if o.strip()]
 
     class Config:
         env_file = ".env"
