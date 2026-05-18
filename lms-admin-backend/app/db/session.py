@@ -13,7 +13,11 @@ engine = create_async_engine(
     pool_size=5,
     max_overflow=10,
     pool_pre_ping=True,
-    connect_args={"ssl": "require"} if _is_remote else {},
+    connect_args={
+        "ssl": "require",
+        "statement_cache_size": 0,  # required for Supabase Transaction pooler
+        "prepared_statement_cache_size": 0,
+    } if _is_remote else {},
 )
 
 AsyncSessionLocal = async_sessionmaker(
