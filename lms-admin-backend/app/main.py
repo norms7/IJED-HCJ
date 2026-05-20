@@ -15,19 +15,34 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
+# ── Rate limiting ──────────────────────────────────────────────────────────────
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+
 from app.core.config import settings
 from app.api.v1.router import api_router
 from app.api.v1.endpoints.notifications import notif_router
+
+
+# ── Global limiter instance (imported by endpoint files) ──────────────────────
+#
+#   key_func=get_remote_address  →  rate limit is tracked per client IP address.
+#   default_limits=["200/minute"] →  safety net for ALL routes (not just login).
+#
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=["200/minute"],
+)
 
 
 # ── Lifespan (startup / shutdown) ─────────────────────────────────────────────
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: could seed DB, warm caches, etc.
     print("✅  LMS Admin API started")
     yield
-    # Shutdown
     print("🛑  LMS Admin API shutting down")
 
 
@@ -45,6 +60,15 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
+
+# ── Attach limiter to app state (required by slowapi) ─────────────────────────
+app.state.limiter = limiter
+
+# ── Register the 429 handler so slowapi returns clean JSON on rate-limit hit ──
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# ── SlowAPI middleware (must be added BEFORE CORSMiddleware) ──────────────────
+app.add_middleware(SlowAPIMiddleware)
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
 
