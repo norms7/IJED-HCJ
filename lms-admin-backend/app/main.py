@@ -15,6 +15,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
+# ── Rate limiting ──────────────────────────────────────────────────────────────
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from app.core.limiter import limiter
+
 from app.core.config import settings
 from app.api.v1.router import api_router
 from app.api.v1.endpoints.notifications import notif_router
@@ -24,10 +30,8 @@ from app.api.v1.endpoints.notifications import notif_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: could seed DB, warm caches, etc.
     print("✅  LMS Admin API started")
     yield
-    # Shutdown
     print("🛑  LMS Admin API shutting down")
 
 
@@ -46,8 +50,13 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# ── CORS ──────────────────────────────────────────────────────────────────────
+# ── Attach limiter to app state (required by slowapi) ─────────────────────────
+app.state.limiter = limiter
 
+# ── Register the 429 handler FIRST before any other middleware ─────────────────
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# ── CORS — must come before SlowAPIMiddleware ──────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
@@ -55,6 +64,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── SlowAPI middleware ─────────────────────────────────────────────────────────
+app.add_middleware(SlowAPIMiddleware)
 
 # ── Global exception handlers ─────────────────────────────────────────────────
 
@@ -66,14 +78,8 @@ async def integrity_error_handler(request: Request, exc: IntegrityError):
         content={"detail": "Database constraint violation. Record may already exist."},
     )
 
-
-@app.exception_handler(Exception)
-async def unhandled_exception_handler(request: Request, exc: Exception):
-    return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": "An unexpected error occurred. Please try again."},
-    )
-
+# NOTE: The broad Exception handler was removed — it was intercepting slowapi's
+# RateLimitExceeded before the 429 handler could respond correctly.
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
