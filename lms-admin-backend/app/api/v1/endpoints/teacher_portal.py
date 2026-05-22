@@ -15,13 +15,24 @@ GET  /student/me/activities/{id}/result            → get own submission result
 """
 import json
 import os
-import shutil
 import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi.responses import RedirectResponse
 from sqlalchemy import select
+from supabase import create_client, Client as SupabaseClient
+
+from app.core.config import settings
+
+# ── Supabase Storage client ───────────────────────────────────────────────────
+
+_supabase: SupabaseClient = create_client(
+    settings.SUPABASE_URL,
+    settings.SUPABASE_SERVICE_KEY,
+)
+STORAGE_BUCKET = "modules"
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -35,9 +46,6 @@ from app.schemas.schemas import ModuleOut
 from app.schemas import ActivitySubmitRequest
 
 router = APIRouter(prefix="/teacher", tags=["Teacher Portal"])
-
-UPLOAD_DIR = "uploads/modules"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 # ── Auth dependency for any logged-in teacher ─────────────────────────────────
@@ -152,7 +160,7 @@ async def upload_module_file(
     file: UploadFile = File(...),
     teacher: Teacher = Depends(get_current_teacher),
 ):
-    """Upload a PDF file. Returns the file_url to use when creating the module."""
+    """Upload a PDF file to Supabase Storage. Returns the public file_url."""
     if not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
 
@@ -161,25 +169,38 @@ async def upload_module_file(
         raise HTTPException(status_code=400, detail="File too large. Max 20MB.")
 
     unique_name = f"{uuid.uuid4()}_{file.filename}"
-    file_path = os.path.join(UPLOAD_DIR, unique_name)
+    storage_path = f"teacher/files/{unique_name}"
 
-    with open(file_path, "wb") as f:
-        f.write(contents)
+    try:
+        _supabase.storage.from_(STORAGE_BUCKET).upload(
+            path=storage_path,
+            file=contents,
+            file_options={"content-type": "application/pdf"},
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Storage upload failed: {exc}")
+
+    public_url = _supabase.storage.from_(STORAGE_BUCKET).get_public_url(storage_path)
 
     return {
-        "file_url": f"/teacher/files/{unique_name}",
+        "file_url": public_url,
         "file_name": file.filename,
     }
 
 
 # ── GET /teacher/files/{filename} ────────────────────────────────────────────
+# Kept for backwards compatibility: old file_url values stored in the DB
+# as `/teacher/files/<uuid>_<name>` will still resolve.
+# New uploads store the full Supabase public URL directly in file_url.
 
 @router.get("/files/{filename}", summary="Download/view a module PDF")
 async def serve_file(filename: str):
-    file_path = os.path.join(UPLOAD_DIR, filename)
-    if not os.path.exists(file_path):
+    storage_path = f"teacher/files/{filename}"
+    try:
+        public_url = _supabase.storage.from_(STORAGE_BUCKET).get_public_url(storage_path)
+    except Exception as exc:
         raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(file_path, media_type="application/pdf")
+    return RedirectResponse(url=public_url, status_code=302)
 
 
 # ── GET /teacher/me/modules ───────────────────────────────────────────────────
@@ -323,10 +344,19 @@ async def delete_my_module(
         raise HTTPException(status_code=403, detail="You can only delete your own modules")
 
     if module.file_url:
-        filename = module.file_url.split("/")[-1]
-        file_path = os.path.join(UPLOAD_DIR, filename)
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        # Extract the storage path from the URL.
+        # Handles both new-style full Supabase URLs and old-style /teacher/files/<name> paths.
+        if "/object/public/" in module.file_url:
+            # e.g. https://<project>.supabase.co/storage/v1/object/public/module/teacher/files/<name>
+            storage_path = module.file_url.split(f"/object/public/{STORAGE_BUCKET}/", 1)[-1]
+        else:
+            # legacy relative path: /teacher/files/<uuid>_<name>
+            filename = module.file_url.split("/")[-1]
+            storage_path = f"teacher/files/{filename}"
+        try:
+            _supabase.storage.from_(STORAGE_BUCKET).remove([storage_path])
+        except Exception:
+            pass  # Don't block deletion if the storage object is already gone
 
     await db.delete(module)
     await db.flush()

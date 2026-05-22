@@ -16,25 +16,14 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
 # ── Rate limiting ──────────────────────────────────────────────────────────────
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+from app.core.limiter import limiter
 
 from app.core.config import settings
 from app.api.v1.router import api_router
 from app.api.v1.endpoints.notifications import notif_router
-
-
-# ── Global limiter instance (imported by endpoint files) ──────────────────────
-#
-#   key_func=get_remote_address  →  rate limit is tracked per client IP address.
-#   default_limits=["200/minute"] →  safety net for ALL routes (not just login).
-#
-limiter = Limiter(
-    key_func=get_remote_address,
-    default_limits=["200/minute"],
-)
 
 
 # ── Lifespan (startup / shutdown) ─────────────────────────────────────────────
@@ -64,14 +53,10 @@ app = FastAPI(
 # ── Attach limiter to app state (required by slowapi) ─────────────────────────
 app.state.limiter = limiter
 
-# ── Register the 429 handler so slowapi returns clean JSON on rate-limit hit ──
+# ── Register the 429 handler FIRST before any other middleware ─────────────────
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# ── SlowAPI middleware (must be added BEFORE CORSMiddleware) ──────────────────
-app.add_middleware(SlowAPIMiddleware)
-
-# ── CORS ──────────────────────────────────────────────────────────────────────
-
+# ── CORS — must come before SlowAPIMiddleware ──────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
@@ -79,6 +64,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── SlowAPI middleware ─────────────────────────────────────────────────────────
+app.add_middleware(SlowAPIMiddleware)
 
 # ── Global exception handlers ─────────────────────────────────────────────────
 
@@ -90,14 +78,8 @@ async def integrity_error_handler(request: Request, exc: IntegrityError):
         content={"detail": "Database constraint violation. Record may already exist."},
     )
 
-
-@app.exception_handler(Exception)
-async def unhandled_exception_handler(request: Request, exc: Exception):
-    return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": "An unexpected error occurred. Please try again."},
-    )
-
+# NOTE: The broad Exception handler was removed — it was intercepting slowapi's
+# RateLimitExceeded before the 429 handler could respond correctly.
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 

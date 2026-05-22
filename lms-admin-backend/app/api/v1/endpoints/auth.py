@@ -6,13 +6,13 @@ from app.schemas.schemas import LoginRequest, TokenResponse
 from app.services import auth_service
 
 # Import the shared limiter instance created in main.py
-from app.main import limiter
+from app.core.limiter import limiter
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
 @router.post("/login", response_model=TokenResponse, summary="Admin / User Login")
-@limiter.limit("5/minute")                 # ← Max 5 login attempts per IP per minute
+@limiter.limit("10/minute")                 # ← Max 5 login attempts per IP per minute
 async def login(request: Request, data: LoginRequest, db: AsyncSession = Depends(get_db)):
     """
     Authenticate with email + password. Returns a JWT bearer token.

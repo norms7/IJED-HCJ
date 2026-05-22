@@ -9,6 +9,10 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
 
+    # Supabase Storage
+    SUPABASE_URL: str = ""
+    SUPABASE_SERVICE_KEY: str = ""
+
     # CORS origins — comma OR space separated in env var
     CORS_ORIGINS: str = (
         "http://localhost:3000 "
