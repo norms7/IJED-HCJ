@@ -12,13 +12,13 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
 @router.post("/login", response_model=TokenResponse, summary="Admin / User Login")
-@limiter.limit("10/minute")                 # ← Max 5 login attempts per IP per minute
+@limiter.limit("10/minute")                 # ← Max 10 login attempts per IP per minute
 async def login(request: Request, data: LoginRequest, db: AsyncSession = Depends(get_db)):
     """
     Authenticate with email + password. Returns a JWT bearer token.
     Include the token as `Authorization: Bearer <token>` on all admin endpoints.
 
-    Rate limited to **5 attempts per minute per IP address**.
+    Rate limited to **10 attempts per minute per IP address**.
     Exceeding this returns HTTP 429 Too Many Requests.
     """
     return await auth_service.login(db, data)
