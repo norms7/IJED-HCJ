@@ -282,18 +282,21 @@ const DashboardController = {
       return;
     }
 
-    // ── Teacher Grades ───────────────────────────────────────────────────
+    // ── Teacher Grades (FIXED: parallel Promise.all instead of serial loop) ──
     if (sectionId === 'grades' && role === 'teacher') {
       area.innerHTML = TeacherView.grades(user);
       api.getTeacherActivities()
         .then(async activities => {
-          const allRows = [];
-          for (const act of activities) {
-            try {
-              const subs = await api.getActivitySubmissions(act.id);
-              subs.forEach(s => { s._activity = act; allRows.push(s); });
-            } catch { /* skip failed fetches */ }
-          }
+          // 🚀 Parallel fetch all submissions (N+1 fix)
+          const allSubsArrays = await Promise.all(
+            activities.map(act =>
+              api.getActivitySubmissions(act.id)
+                .then(subs => subs.map(s => ({ ...s, _activity: act })))
+                .catch(() => []) // gracefully skip activities that fail
+            )
+          );
+          const allRows = allSubsArrays.flat();
+
           const countEl = document.getElementById('grade-count');
           if (countEl) countEl.textContent = `${allRows.length} submission(s)`;
           const rows = allRows.map(s => {
@@ -316,7 +319,7 @@ const DashboardController = {
             <div class="card">
               <div class="table-wrap">
                 <table class="data-table">
-                  <thead><tr><th>Student</th><th>Activity</th><th>Type</th><th>Score</th><th>Performance</th><th>Grade</th><th>Remarks</th><th>Date</th></tr></thead>
+                  <thead><tr><th>Student</th><th>Activity</th><th>Type</th><th>Score</th><th>Performance</th><th>Grade</th><th>Remarks</th><th>Date</th>}</thead>
                   <tbody>${rows}</tbody>
                 </table>
               </div>

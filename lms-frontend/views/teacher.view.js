@@ -112,8 +112,9 @@ const TeacherView = {
     const cards = apiModules.map(m => {
       const style   = SUBJECT_STYLES[m._subject_name] || { color: 'var(--maroon)', icon: '📚' };
       const hasFile = !!m.file_url;
+      const resolvedUrl = m.file_url && m.file_url.startsWith('http') ? m.file_url : `${API_BASE}${m.file_url}`;
       const fileBtn = hasFile
-        ? `<a class="btn btn-xs btn-primary" href="${API_BASE}${escHtml(m.file_url)}" target="_blank" rel="noopener">📂 Open PDF</a>`
+        ? `<a class="btn btn-xs btn-primary" href="${escHtml(resolvedUrl)}" target="_blank" rel="noopener">📂 Open PDF</a>`
         : `<span class="btn btn-xs btn-outline" style="opacity:.5;cursor:default">No file</span>`;
       const termLabel = m.term ? `${m.term} Term` : '';
       const meta = [termLabel, m.file_name ? `📎 ${escHtml(m.file_name)}` : ''].filter(Boolean).join(' · ');
