@@ -232,11 +232,12 @@ const StudentView = {
 
         const moduleRows = modules.map(m => {
           const hasFile = !!m.file_url;
+          const resolvedUrl = m.file_url && m.file_url.startsWith('http') ? m.file_url : `${API_BASE}${m.file_url}`;
           return `<div class="accordion-content-item">
             <span class="acc-item-icon">📄</span>
             <span class="acc-item-label">${escHtml(m.title)}${m.description ? '<span class="acc-item-desc">' + escHtml(m.description) + '</span>' : ''}</span>
             ${hasFile
-              ? `<a class="btn btn-xs btn-primary" href="${API_BASE}${escHtml(m.file_url)}" target="_blank" rel="noopener" onclick="StudentController.trackModuleRead(${m.id})">Open 📖</a>`
+              ? `<a class="btn btn-xs btn-primary" href="${escHtml(resolvedUrl)}" target="_blank" rel="noopener" onclick="StudentController.trackModuleRead(${m.id})">Open 📖</a>`
               : `<span class="btn btn-xs btn-outline" style="opacity:.45;cursor:default;pointer-events:none">No file</span>`}
           </div>`;
         }).join('');
@@ -327,6 +328,7 @@ const StudentView = {
       const termLabel = m.term ? `${m.term} Term` : '';
       const meta      = [termLabel, m.file_name ? `📎 ${escHtml(m.file_name)}` : ''].filter(Boolean).join(' · ');
       const hasFile   = !!m.file_url;
+      const resolvedUrl = m.file_url && m.file_url.startsWith('http') ? m.file_url : `${API_BASE}${m.file_url}`;
       return `<div class="module-card" data-searchable>
         <div class="module-card-header">
           <div class="module-card-subject" style="color:${style.color}">${style.icon} ${escHtml(m._subject_name || '?')}</div>
@@ -336,7 +338,7 @@ const StudentView = {
         <div class="module-card-footer">
           <span class="module-card-meta">${meta || 'No attachment'}</span>
           ${hasFile
-            ? `<a class="btn btn-xs btn-primary" href="${API_BASE}${escHtml(m.file_url)}" target="_blank" rel="noopener" onclick="StudentController.trackModuleRead(${m.id})">Open 📖</a>`
+            ? `<a class="btn btn-xs btn-primary" href="${escHtml(resolvedUrl)}" target="_blank" rel="noopener" onclick="StudentController.trackModuleRead(${m.id})">Open 📖</a>`
             : `<span class="btn btn-xs btn-outline" style="opacity:.5;cursor:default">No file</span>`}
         </div>
       </div>`;
@@ -499,6 +501,15 @@ const StudentView = {
         const gradeColor = isPassing ? '#2e6b3e' : '#c0392b';
         const gradeBg    = isPassing ? '#e6f4ea' : '#fde8ec';
         gradeCell = `<td style="padding:14px 12px;text-align:center"><span style="display:inline-block;padding:3px 10px;border-radius:6px;background:${gradeBg};color:${gradeColor};font-weight:700;font-size:13px">${escHtml(String(sub.grade))}</span></td>`;
+      } else if (sub && sub.score != null && sub.max_score != null) {
+        // Backend did not return a grade string — compute it from score
+        const pct = Math.round(sub.score / sub.max_score * 100);
+        const gradeColor = pct >= 75 ? '#2e6b3e' : '#c0392b';
+        const gradeBg    = pct >= 75 ? '#e6f4ea' : '#fde8ec';
+        const gradeLabel = pct >= 97 ? '1.00' : pct >= 94 ? '1.25' : pct >= 91 ? '1.50'
+                        : pct >= 88 ? '1.75' : pct >= 85 ? '2.00' : pct >= 82 ? '2.25'
+                        : pct >= 79 ? '2.50' : pct >= 76 ? '2.75' : pct >= 75 ? '3.00' : '5.00';
+        gradeCell = `<td style="padding:14px 12px;text-align:center"><span style="display:inline-block;padding:3px 10px;border-radius:6px;background:${gradeBg};color:${gradeColor};font-weight:700;font-size:13px">${gradeLabel}</span></td>`;
       } else if (sub && !sub.is_graded) {
         gradeCell = `<td style="padding:14px 12px;text-align:center;font-size:13px;color:var(--gray-400)">Pending</td>`;
       } else {
