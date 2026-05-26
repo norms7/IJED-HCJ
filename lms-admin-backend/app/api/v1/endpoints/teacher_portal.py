@@ -363,6 +363,81 @@ async def delete_my_module(
     return {"message": "Module deleted successfully", "id": module_id}
 
 
+
+# ── GET /teacher/me/class/{class_id}/module-reads ─────────────────────────────
+
+@router.get("/me/class/{class_id}/module-reads", summary="Get module read counts per student for a class")
+async def get_class_module_reads(
+    class_id: int,
+    teacher: Teacher = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Returns a dict mapping student_id → number of modules they have read
+    for all modules belonging to this class.
+    """
+    from app.models.models import (
+        TeacherClassAssignment, Section, StudentSectionAssignment,
+        Student, Module, StudentModuleRead
+    )
+
+    # Verify teacher is assigned to this class
+    result = await db.execute(
+        select(TeacherClassAssignment).where(
+            TeacherClassAssignment.teacher_id == teacher.id,
+            TeacherClassAssignment.class_id == class_id,
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=403, detail="You are not assigned to this class")
+
+    # Get all module ids for this class
+    result = await db.execute(
+        select(Module.id).where(Module.class_id == class_id)
+    )
+    module_ids = [row[0] for row in result.all()]
+    if not module_ids:
+        return {"module_reads": {}, "total_modules": 0}
+
+    # Get all students in this class
+    result = await db.execute(
+        select(Section).where(Section.class_id == class_id)
+    )
+    sections = result.scalars().all()
+    section_ids = [s.id for s in sections]
+
+    result = await db.execute(
+        select(Student.id)
+        .join(Student.section_assignments)
+        .where(StudentSectionAssignment.section_id.in_(section_ids))
+        .distinct()
+    )
+    student_ids = [row[0] for row in result.all()]
+
+    if not student_ids:
+        return {"module_reads": {}, "total_modules": len(module_ids)}
+
+    # Fetch all read records for these students+modules
+    result = await db.execute(
+        select(StudentModuleRead.student_id, StudentModuleRead.module_id)
+        .where(
+            StudentModuleRead.student_id.in_(student_ids),
+            StudentModuleRead.module_id.in_(module_ids),
+        )
+    )
+    reads = result.all()
+
+    # Count reads per student
+    counts = {sid: 0 for sid in student_ids}
+    for student_id, _ in reads:
+        counts[student_id] = counts.get(student_id, 0) + 1
+
+    return {
+        "module_reads": counts,   # { "student_id": read_count, ... }
+        "total_modules": len(module_ids),
+    }
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # STUDENT PORTAL
 # ══════════════════════════════════════════════════════════════════════════════

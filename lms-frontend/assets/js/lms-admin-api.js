@@ -311,6 +311,10 @@ class LMSAdminAPI {
     return this._request("GET", `/teacher/me/class/${classId}/students`);
   }
 
+  async getClassModuleReads(classId) {
+    return this._request("GET", `/teacher/me/class/${classId}/module-reads`);
+  }
+
   async uploadSubjectMaterial(subjectId, formData) {
     const res = await fetch(`${this.baseURL}/teacher/me/subjects/${subjectId}/materials`, {
       method: "POST",
