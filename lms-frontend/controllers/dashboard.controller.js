@@ -282,51 +282,10 @@ const DashboardController = {
       return;
     }
 
-    // ── Teacher Grades (FIXED: parallel Promise.all instead of serial loop) ──
+    // ── Teacher Grades → Digital Gradebook ─────────────────────────────────
     if (sectionId === 'grades' && role === 'teacher') {
       area.innerHTML = TeacherView.grades(user);
-      api.getTeacherActivities()
-        .then(async activities => {
-          // 🚀 Parallel fetch all submissions (N+1 fix)
-          const allSubsArrays = await Promise.all(
-            activities.map(act =>
-              api.getActivitySubmissions(act.id)
-                .then(subs => subs.map(s => ({ ...s, _activity: act })))
-                .catch(() => []) // gracefully skip activities that fail
-            )
-          );
-          const allRows = allSubsArrays.flat();
-
-          const countEl = document.getElementById('grade-count');
-          if (countEl) countEl.textContent = `${allRows.length} submission(s)`;
-          const rows = allRows.map(s => {
-            const pct        = s.max_score > 0 ? Math.round((s.score ?? 0) / s.max_score * 100) : null;
-            const gradeClass = pct >= 90 ? 'badge-green' : pct >= 75 ? 'badge-gold' : 'badge-red';
-            const gradeLabel = pct >= 90 ? 'Excellent' : pct >= 75 ? 'Passing' : 'Needs Work';
-            return `<tr data-searchable>
-              <td><strong>Student #${s.student_id}</strong></td>
-              <td class="text-sm">${escHtml(s._activity?.title || '?')}</td>
-              <td><span class="badge badge-maroon" style="font-size:10px">${escHtml(s._activity?.activity_type || '')}</span></td>
-              <td>${s.score !== null && s.score !== undefined ? s.score : '—'}/${s.max_score ?? '—'}</td>
-              <td>${pct !== null ? `<span class="badge ${gradeClass}">${gradeLabel} (${pct}%)</span>` : '<span class="badge badge-gray">Ungraded</span>'}</td>
-              <td class="text-sm text-muted">${escHtml(s.grade || '—')}</td>
-              <td class="text-sm text-muted">${escHtml(s.remarks || '—')}</td>
-              <td class="text-sm text-muted">${s.submitted_at ? new Date(s.submitted_at).toLocaleDateString() : '—'}</td>
-            </tr>`;
-          }).join('') || '<tr><td colspan="8" class="text-center text-muted" style="padding:40px">No submissions yet</td></tr>';
-          const wrap = document.getElementById('grades-table-wrap');
-          if (wrap) wrap.innerHTML = `
-            <div class="card">
-              <div class="table-wrap">
-                <table class="data-table">
-                  <thead><tr><th>Student</th><th>Activity</th><th>Type</th><th>Score</th><th>Performance</th><th>Grade</th><th>Remarks</th><th>Date</th>}</thead>
-                  <tbody>${rows}</tbody>
-                </table>
-              </div>
-            </div>`;
-          this._attachSearch();
-        })
-        .catch(err => Toast.show('Failed to load grades: ' + err.message, 'error'));
+      GradebookController.loadSections();
       return;
     }
 
