@@ -21,7 +21,7 @@
 
 ## Overview
 
-IJED LMS is a web-based Learning Management System designed for school administrators, teachers, and students. It provides role-based dashboards, user management, course modules, activity tracking, and more — all backed by a modern async FastAPI API.
+IJED LMS is a web-based Learning Management System designed for school administrators, teachers, and students. It provides role-based dashboards, user management, course modules, attendance tracking, activity submission with auto-grading, real-time notifications, and more — all backed by a modern async FastAPI API.
 
 ---
 
@@ -29,17 +29,23 @@ IJED LMS is a web-based Learning Management System designed for school administr
 
 | Role | Capabilities |
 |------|-------------|
-| **Admin** | Manage users, teachers, students, classes, sections, subjects, modules |
-| **Teacher** | View assigned subjects, manage modules & activities, record grades |
-| **Student** | Access modules, submit activities, view grades and calendar |
+| **Admin** | Manage users, teachers, students, classes, sections, subjects, modules, activities; broadcast announcements |
+| **Teacher** | View assigned subjects & students, manage modules (PDF upload), create & grade activities, record attendance per session |
+| **Student** | Access published modules, submit activities, view grades, view own attendance summary, receive notifications, dashboard overview |
 
 **Core highlights:**
+
 - Role-based access control (Admin / Teacher / Student)
 - JWT authentication with bcrypt password hashing
-- Full CRUD for users, teachers, students, modules, and activities
+- Full CRUD for users, teachers, students, classes, sections, subjects, modules, activities, and attendance sessions
+- Student attendance tracking — per-subject, per-term breakdown visible to both teacher and student
+- Activity engine — multiple choice, freeform, hybrid, and assignment types with auto-grading
+- PDF module uploads served via the backend
+- Real-time notifications via SSE (Server-Sent Events) with admin broadcast
+- Student dashboard with progress summary, upcoming activities, and module read tracking
 - Async PostgreSQL with SQLAlchemy 2.0 (Supabase-compatible)
 - Alembic database migrations
-- Responsive sidebar UI with dark mode
+- Responsive sidebar UI with dark mode support
 - Toast notifications, modal system, and live clock
 - MVC-patterned vanilla JS frontend
 
@@ -65,30 +71,37 @@ IJED LMS is a web-based Learning Management System designed for school administr
 
 ```
 IJED/
-├── lms-admin-backend/            # FastAPI backend
+├── lms-admin-backend/                  # FastAPI backend
 │   ├── app/
-│   │   ├── main.py               # App factory, CORS, error handlers
+│   │   ├── main.py                     # App factory, CORS, SSE, error handlers
 │   │   ├── api/
 │   │   │   └── v1/
-│   │   │       ├── router.py     # Aggregates all routers
+│   │   │       ├── router.py           # Aggregates all routers
 │   │   │       └── endpoints/
-│   │   │           ├── auth.py
-│   │   │           ├── dashboard.py
-│   │   │           ├── users.py
-│   │   │           ├── teachers.py
-│   │   │           ├── students.py
-│   │   │           ├── modules.py
-│   │   │           └── classes.py
+│   │   │           ├── auth.py                  # POST /auth/login
+│   │   │           ├── dashboard.py             # Admin dashboard stats
+│   │   │           ├── users.py                 # Admin user CRUD
+│   │   │           ├── teachers.py              # Admin teacher management
+│   │   │           ├── students.py              # Admin student management & enrollment
+│   │   │           ├── classes.py               # Admin classes, sections, subjects
+│   │   │           ├── modules.py               # Admin module & activity CRUD
+│   │   │           ├── teacher_portal.py        # Teacher self-service + student portal base
+│   │   │           ├── teacher_activities.py    # Teacher activity creation & grading
+│   │   │           ├── attendance.py            # Teacher attendance sessions & records
+│   │   │           ├── student_portal.py        # Student subjects, modules, attendance
+│   │   │           ├── student_activities.py    # Student activity listing & submission
+│   │   │           ├── student_dashboard.py     # Student dashboard & module read tracking
+│   │   │           └── notifications.py         # SSE stream, inbox, admin broadcast
 │   │   ├── core/
-│   │   │   ├── config.py         # Pydantic settings (reads .env)
-│   │   │   └── security.py       # JWT + bcrypt + auth dependency
+│   │   │   ├── config.py               # Pydantic settings (reads .env)
+│   │   │   └── security.py             # JWT + bcrypt + auth dependency
 │   │   ├── db/
-│   │   │   └── session.py        # Async engine, session factory, Base
+│   │   │   └── session.py              # Async engine, session factory, Base
 │   │   ├── models/
-│   │   │   └── models.py         # All SQLAlchemy ORM models
+│   │   │   └── models.py               # All SQLAlchemy ORM models
 │   │   ├── schemas/
-│   │   │   └── schemas.py        # All Pydantic v2 request/response schemas
-│   │   └── services/             # Business logic layer
+│   │   │   └── schemas.py              # All Pydantic v2 request/response schemas
+│   │   └── services/                   # Business logic layer
 │   │       ├── auth_service.py
 │   │       ├── dashboard_service.py
 │   │       ├── user_service.py
@@ -97,32 +110,45 @@ IJED/
 │   │       └── module_service.py
 │   ├── alembic/
 │   │   └── versions/
-│   │       └── 001_initial.py    # Full schema + roles seed
-│   ├── seed.py                   # Bootstrap script (users + sample data)
+│   │       └── 001_initial.py          # Full schema + roles seed
+│   ├── seed.py                         # Bootstrap script (users + sample data)
 │   ├── requirements.txt
 │   ├── alembic.ini
 │   └── .env.example
 │
-└── lms-frontend/                 # Vanilla JS frontend (MVC)
-    ├── index.html                # Single-page app shell
+└── lms-frontend/                       # Vanilla JS frontend (MVC)
+    ├── index.html                      # Single-page app shell
     ├── assets/
     │   ├── css/
-    │   │   ├── main.css          # CSS variables, reset, base styles
-    │   │   ├── layout.css        # Sidebar, topbar, page layout
-    │   │   └── components.css    # Cards, tables, modals, badges
+    │   │   ├── main.css                # CSS variables, reset, base styles
+    │   │   ├── layout.css              # Sidebar, topbar, page layout
+    │   │   ├── components.css          # Cards, tables, modals, badges
+    │   │   └── notifications.css       # Notification bell & dropdown styles
     │   ├── js/
-    │   │   ├── app.js            # Entry point (bootstraps App.init)
-    │   │   └── lms-admin-api.js  # API client class (LMSAdminAPI)
+    │   │   ├── app.js                  # Entry point (bootstraps App.init)
+    │   │   └── lms-admin-api.js        # API client class (LMSAdminAPI)
     │   └── images/
     │       └── logo.png
     ├── controllers/
-    │   └── controllers.js        # App, Auth, Dashboard, feature controllers
+    │   ├── app.controller.js           # App bootstrap & routing
+    │   ├── auth.controller.js          # Login / logout
+    │   ├── admin.controller.js         # Admin section controllers
+    │   ├── teacher.controller.js       # Teacher portal controllers
+    │   ├── student.controller.js       # Student portal controllers (modules, attendance)
+    │   ├── attendance.controller.js    # Attendance session management
+    │   ├── dashboard.controller.js     # Role-based dashboard
+    │   ├── gradebook.controller.js     # Gradebook view
+    │   ├── calendar.controller.js      # Calendar view
+    │   └── notification.controller.js  # Notification bell & SSE listener
     ├── models/
-    │   └── models.js             # Local data models (mock/offline layer)
+    │   └── models.js                   # Local data models
     ├── utils/
-    │   └── utils.js              # Storage, Toast, Modal, Validate helpers
+    │   └── utils.js                    # Storage, Toast, Modal, Validate helpers
     └── views/
-        └── views.js              # HTML template renderers per section
+        ├── admin.view.js               # Admin HTML template renderers
+        ├── teacher.view.js             # Teacher HTML template renderers
+        ├── student.view.js             # Student HTML template renderers
+        └── calendar.view.js            # Calendar HTML template renderers
 ```
 
 ---
@@ -132,7 +158,6 @@ IJED/
 ### Prerequisites
 
 - Python 3.12+
-- Node.js (optional, for tooling)
 - PostgreSQL 14+ (or a free [Supabase](https://supabase.com) project)
 - A code editor (VS Code recommended)
 
@@ -271,18 +296,62 @@ Authorization: Bearer eyJhbGci...
 
 ### Endpoints Summary
 
+#### Admin Endpoints
+
 | Resource | Methods | Base Path |
 |----------|---------|-----------|
-| Auth | POST | `/auth/login` |
-| Dashboard | GET | `/admin/dashboard/stats` |
+| Dashboard Stats | GET | `/admin/dashboard/stats` |
 | Users | GET, POST, PUT, DELETE | `/admin/users` |
-| Teachers | GET, POST | `/admin/teachers` |
+| Teachers | GET, POST, PUT, DELETE | `/admin/teachers` |
+| Teacher Class Assignments | POST, PUT, DELETE | `/admin/teachers/assign-class` |
 | Students | GET, POST | `/admin/students` |
+| Student Subject Enrollments | POST, GET, DELETE | `/admin/students/{id}/enrollments` |
 | Classes | GET, POST | `/admin/classes` |
-| Sections | GET, POST | `/admin/sections` |
+| Sections | GET, POST, PUT, DELETE | `/admin/sections` |
 | Subjects | GET, POST | `/admin/subjects` |
 | Modules | GET, POST, PUT, DELETE | `/admin/modules` |
 | Activities | GET, POST, PUT, DELETE | `/admin/activities` |
+| Announcements (broadcast) | POST | `/notifications/announce` |
+
+#### Teacher Endpoints
+
+| Resource | Methods | Path |
+|----------|---------|------|
+| My subjects | GET | `/teacher/me/subjects` |
+| My modules | GET, POST, DELETE | `/teacher/me/modules` |
+| PDF upload | POST | `/teacher/me/modules/upload` |
+| Class students | GET | `/teacher/me/class/{class_id}/students` |
+| Module read counts | GET | `/teacher/me/class/{class_id}/module-reads` |
+| My activities | GET, POST, PUT, DELETE | `/teacher/activities` |
+| Student submissions | GET | `/teacher/activities/{id}/submissions` |
+| Grade submission | POST | `/teacher/activities/grade` |
+| Attendance sections | GET | `/teacher/attendance/sections` |
+| Section students + summary | GET | `/teacher/attendance/sections/{class_id}/students` |
+| Attendance sessions | GET, POST | `/teacher/attendance/sessions` |
+| Attendance session detail | GET, PUT, DELETE | `/teacher/attendance/sessions/{session_id}` |
+
+#### Student Endpoints
+
+| Resource | Methods | Path |
+|----------|---------|------|
+| Dashboard | GET | `/student/me/dashboard` |
+| My subjects | GET | `/student/me/subjects` |
+| My modules | GET | `/student/me/modules` |
+| My attendance summary | GET | `/student/me/attendance` |
+| My activities | GET | `/student/me/activities` |
+| Activity detail | GET | `/student/activities/{id}` |
+| Submit activity | POST | `/student/activities/{id}/submit` |
+| My submission result | GET | `/student/activities/{id}/my-submission` |
+| Mark module read | POST | `/student/me/module-read` |
+
+#### Notifications
+
+| Resource | Methods | Path |
+|----------|---------|------|
+| SSE stream | GET | `/notifications/stream` |
+| My notifications | GET | `/notifications` |
+| Delete notification | DELETE | `/notifications/{id}` |
+| Admin broadcast | POST | `/notifications/announce` |
 
 Full interactive docs available at `/docs` when the server is running.
 
@@ -291,14 +360,24 @@ Full interactive docs available at `/docs` when the server is running.
 ## Database Schema
 
 ```
-roles (1) ──< users (1) ──< teachers (1) ──< teacher_class_assignments
-                      │                              │            │
-                      │                           classes      subjects
-                      │                              │
-                      └──< students (1) ──< student_section_assignments
-                                                     │
-                                                  sections >── classes
-classes ──< modules ──< activities
+roles ──< users ──< teachers ──< teacher_class_assignments >── classes
+                │                                                  │
+                │                                              subjects
+                │
+                └──< students ──< student_section_assignments >── sections >── classes
+                          │
+                          └──< student_subject_enrollments >── subjects
+
+classes ──< modules ──< activities ──< activity_questions ──< activity_question_choices
+                              │
+                              └──< activity_submissions ──< activity_answers
+
+attendance_sessions (class + subject + teacher + date)
+    └──< attendance_records (student + status per session)
+
+modules ──< student_module_reads (tracking per student)
+
+notifications (user inbox + SSE broadcast)
 ```
 
 ---
@@ -326,6 +405,22 @@ await api.createModule({
   subject_id: 2,
   is_published: true,
 });
+
+// Student: get attendance summary
+const attendance = await api.getMyAttendance();
+
+// Teacher: create an attendance session
+await api.createAttendanceSession({
+  class_id: 1,
+  subject_id: 2,
+  term: "1st",
+  session_date: "2025-01-15",
+  has_class: true,
+  records: [
+    { student_id: 3, status: "present" },
+    { student_id: 4, status: "absent" },
+  ],
+});
 ```
 
 ---
@@ -340,7 +435,7 @@ await api.createModule({
 
 ### Frontend (e.g., Vercel, Netlify, GitHub Pages)
 
-1. Update the `LMSAdminAPI` base URL in `controllers/controllers.js` to your deployed backend URL.
+1. Update the `LMSAdminAPI` base URL in `assets/js/lms-admin-api.js` to your deployed backend URL.
 2. Deploy the `lms-frontend/` folder as a static site.
 
 ### Database (Supabase)
@@ -358,7 +453,32 @@ await api.createModule({
 - **Async throughout** — All DB calls use `await`; the engine is configured for production concurrency.
 - **Global error handling** — `IntegrityError` returns a clean 409; all unhandled exceptions return 500 with a safe message.
 - **Migrations** — Always use `alembic revision --autogenerate -m "description"` for schema changes. Never edit tables manually.
-- **Frontend MVC** — `models.js` handles data, `views.js` renders HTML, `controllers.js` wires logic, `utils.js` provides shared helpers.
+- **Attendance logic** — Only sessions where `has_class=True` count as meetings. Sessions where class was cancelled are stored but not counted in totals.
+- **Activity auto-grading** — Multiple choice questions are graded automatically on submission. Freeform, hybrid, and assignment types require manual teacher grading.
+- **SSE notifications** — The `/notifications/stream` endpoint holds an open connection per user. Broadcast via `POST /notifications/announce` (admin only) fans out to all connected clients.
+- **Frontend MVC** — `models.js` handles data, `views/*.view.js` renders HTML, `controllers/*.controller.js` wires logic, `utils.js` provides shared helpers.
+
+---
+
+## Changelog
+
+### Bug Fixes
+
+**`app/api/v1/router.py` — Student attendance endpoint returning 404**
+
+The `GET /student/me/attendance` route was returning `404 Not Found` for all student accounts despite the endpoint being fully implemented in `student_portal.py`. The root cause was that `student_portal.py` was never imported or registered in the API router. The router was only including a `student_router` from `teacher_portal.py`, which did not expose the attendance route.
+
+**Fix:** Added the missing import and router registration to `router.py`:
+
+```python
+# Added import
+from app.api.v1.endpoints.student_portal import router as student_attendance_router
+
+# Added registration
+api_router.include_router(student_attendance_router)
+```
+
+This makes `GET /student/me/attendance` available and returns a per-subject, per-term attendance breakdown for the logged-in student.
 
 ---
 
