@@ -535,64 +535,6 @@ const StudentView = {
         </tr>`;
     }).join('');
 
-    /* ── Grade Equivalence Legend helper ──────────────────────────────── */
-    function _buildGradeLegend() {
-      var entries = [
-        { grade:'1.00', range:'97–99%',   label:'Excellent',               passing:true  },
-        { grade:'1.25', range:'94–96%',   label:'Very Good',               passing:true  },
-        { grade:'1.50', range:'91–93%',   label:'Very Good',               passing:true  },
-        { grade:'1.75', range:'88–90%',   label:'Very Good',               passing:true  },
-        { grade:'2.00', range:'85–87%',   label:'Satisfactory',            passing:true  },
-        { grade:'2.25', range:'82–84%',   label:'Satisfactory',            passing:true  },
-        { grade:'2.50', range:'79–81%',   label:'Satisfactory',            passing:true  },
-        { grade:'2.75', range:'76–78%',   label:'Fair',                    passing:true  },
-        { grade:'3.00', range:'75%',          label:'Fair',                    passing:true  },
-        { grade:'5.00', range:'Below 75%',    label:'Failed',                  passing:false },
-        { grade:'INC',  range:'',             label:'Incomplete Requirements', passing:null  },
-        { grade:'DRP',  range:'',             label:'Officially Dropped',      passing:null  },
-        { grade:'E',    range:'',             label:'Exempted',                passing:null  },
-      ];
-      var items = entries.map(function(g) {
-        var bg  = g.passing === true  ? '#e6f4ea'
-                : g.passing === false ? '#fde8ec'
-                :                       '#f0f0f0';
-        var col = g.passing === true  ? '#2e6b3e'
-                : g.passing === false ? '#c0392b'
-                :                       '#555';
-        var rangeSpan = g.range
-          ? '<span style="color:#999;margin-right:4px">' + g.range + '</span>'
-          : '';
-        return (
-          '<div style="display:flex;align-items:center;gap:10px;padding:4px 0">'
-          + '<span style="display:inline-flex;align-items:center;justify-content:center;'
-          + 'min-width:46px;padding:2px 8px;border-radius:6px;background:' + bg + ';color:' + col + ';'
-          + 'font-size:12px;font-weight:700;flex-shrink:0">' + g.grade + '</span>'
-          + '<span style="font-size:12px;color:#666">' + rangeSpan + escHtml(g.label) + '</span>'
-          + '</div>'
-        );
-      }).join('');
-
-      return (
-        '<div class="grade-equiv-legend" style="margin-top:20px;border:1px solid #e5e7eb;border-radius:12px;'
-        + 'background:white;box-shadow:0 1px 4px rgba(0,0,0,.05);overflow:hidden">'
-        + '<div style="padding:12px 20px;border-bottom:1px solid #e5e7eb;background:#fdf6f7;'
-        + 'display:flex;align-items:center;gap:8px">'
-        + '<span style="font-size:16px">🎓</span>'
-        + '<span style="font-size:13px;font-weight:700;color:#6b0f1a">Grading System</span>'
-        + '</div>'
-        + '<div style="padding:16px 20px">'
-        + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px 24px">'
-        + items
-        + '</div>'
-        + '<p style="margin:10px 0 0;font-size:11px;color:#aaa">'
-        + 'Numeric grades are computed from your percentage score. '
-        + 'A grade of <strong>3.00 or better</strong> is considered passing.'
-        + '</p>'
-        + '</div>'
-        + '</div>'
-      );
-    }
-
     return `
       <div class="section-header">
         <div class="section-header-left"><h2>Activities &amp; Quizzes</h2><p id="act-student-count">${apiActivities.length} activity(s)</p></div>
@@ -615,10 +557,7 @@ const StudentView = {
           </thead>
           <tbody id="student-activity-list">${rows}</tbody>
         </table>
-      </div>
-
-      <!-- ── Grade Equivalence Legend ────────────────────────────────────── -->
-      ${_buildGradeLegend()}`;
+      </div>`;
   },
 
   /** Activity answering screen */
@@ -917,5 +856,174 @@ const StudentView = {
     if (pct >= 69) return '2.75';
     if (pct >= 65) return '3.00';
     return '5.00';
+  },
+
+  // ── Attendance loading skeleton ────────────────────────────────────────────
+  attendanceLoading() {
+    return `
+      <div class="section-header">
+        <div class="section-header-left">
+          <h2>📋 My Attendance</h2>
+          <p>Loading…</p>
+        </div>
+      </div>
+      <div class="empty-state" style="margin-top:40px">
+        <div class="empty-state-icon">⏳</div>
+        <div class="empty-state-title">Loading attendance records…</div>
+      </div>`;
+  },
+
+  // ── Attendance full view ───────────────────────────────────────────────────
+  /**
+   * @param {Array} data  - result of api.getMyAttendance()
+   *   Each item: { subject_name, class_name, terms[], totals }
+   *   terms[]: { term, present, absent, late, excused, total }
+   *   totals:  { present, absent, late, excused, total }
+   */
+  attendance(data) {
+    if (!data || !data.length) {
+      return `
+        <div class="section-header">
+          <div class="section-header-left"><h2>📋 My Attendance</h2><p>No records found</p></div>
+        </div>
+        <div class="empty-state" style="margin-top:40px">
+          <div class="empty-state-icon">📭</div>
+          <div class="empty-state-title">No Attendance Records Yet</div>
+          <div class="empty-state-sub">Your teacher hasn't recorded any attendance sessions for your subjects yet.</div>
+        </div>`;
+    }
+
+    // Helper: status pill colour
+    function _statusBg(status) {
+      return status === 'present' ? '#e6f4ea'
+           : status === 'late'    ? '#fff8e1'
+           : status === 'excused' ? '#e8f0fe'
+           :                        '#fde8ec'; // absent
+    }
+    function _statusColor(status) {
+      return status === 'present' ? '#2e6b3e'
+           : status === 'late'    ? '#a05c00'
+           : status === 'excused' ? '#1a4a8a'
+           :                        '#c0392b';
+    }
+
+    // Helper: attendance rate bar
+    function _rateBar(present, total) {
+      if (!total) return '<span style="color:#aaa;font-size:12px">No sessions yet</span>';
+      const pct = Math.round(present / total * 100);
+      const barColor = pct >= 75 ? '#2e6b3e' : pct >= 50 ? '#a05c00' : '#c0392b';
+      const textColor = pct >= 75 ? '#2e6b3e' : pct >= 50 ? '#a05c00' : '#c0392b';
+      return `
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="flex:1;height:6px;background:#eee;border-radius:4px;overflow:hidden">
+            <div style="width:${pct}%;height:100%;background:${barColor};border-radius:4px;transition:width .4s"></div>
+          </div>
+          <span style="font-size:12px;font-weight:700;color:${textColor};white-space:nowrap">${pct}%</span>
+        </div>`;
+    }
+
+    // Helper: stat badge
+    function _badge(value, status) {
+      const bg  = _statusBg(status);
+      const col = _statusColor(status);
+      const labels = { present:'Present', absent:'Absent', late:'Late', excused:'Excused' };
+      return `
+        <div style="text-align:center;padding:6px 10px;background:${bg};border-radius:8px;min-width:56px">
+          <div style="font-size:18px;font-weight:800;color:${col}">${value}</div>
+          <div style="font-size:10px;color:${col};opacity:.8;margin-top:1px">${labels[status]}</div>
+        </div>`;
+    }
+
+    const cards = data.map(subject => {
+      const { subject_name, class_name, terms, totals } = subject;
+      const hasData = totals.total > 0;
+
+      // Per-term breakdown rows
+      const termRows = terms.length
+        ? terms.map(t => {
+            const termPct = t.total ? Math.round(t.present / t.total * 100) : null;
+            return `
+              <tr style="border-top:1px solid #f0f0f0">
+                <td style="padding:8px 12px;font-size:12px;font-weight:600;color:#555;white-space:nowrap">${escHtml(t.term)} Term</td>
+                <td style="padding:8px 12px;text-align:center">
+                  <span style="display:inline-block;padding:2px 8px;border-radius:5px;background:${_statusBg('present')};color:${_statusColor('present')};font-size:12px;font-weight:700">${t.present}</span>
+                </td>
+                <td style="padding:8px 12px;text-align:center">
+                  <span style="display:inline-block;padding:2px 8px;border-radius:5px;background:${_statusBg('absent')};color:${_statusColor('absent')};font-size:12px;font-weight:700">${t.absent}</span>
+                </td>
+                <td style="padding:8px 12px;text-align:center">
+                  <span style="display:inline-block;padding:2px 8px;border-radius:5px;background:${_statusBg('late')};color:${_statusColor('late')};font-size:12px;font-weight:700">${t.late}</span>
+                </td>
+                <td style="padding:8px 12px;text-align:center">
+                  <span style="display:inline-block;padding:2px 8px;border-radius:5px;background:${_statusBg('excused')};color:${_statusColor('excused')};font-size:12px;font-weight:700">${t.excused}</span>
+                </td>
+                <td style="padding:8px 12px;text-align:center;font-size:12px;color:#666">${t.total}</td>
+                <td style="padding:8px 16px;min-width:120px">${termPct !== null ? _rateBar(t.present, t.total) : '<span style="color:#aaa;font-size:11px">—</span>'}</td>
+              </tr>`;
+          }).join('')
+        : `<tr><td colspan="7" style="padding:12px 16px;text-align:center;font-size:13px;color:#aaa">No sessions recorded yet</td></tr>`;
+
+      const overallPct = totals.total ? Math.round(totals.present / totals.total * 100) : null;
+
+      return `
+        <div style="border:1px solid var(--gray-200);border-radius:12px;background:white;
+                    box-shadow:0 1px 4px rgba(0,0,0,.05);overflow:hidden;margin-bottom:16px">
+
+          <!-- Card header -->
+          <div style="padding:14px 20px;background:var(--rose-tint,#fdf6f7);
+                      border-bottom:1px solid var(--gray-200);
+                      display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+            <div>
+              <div style="font-size:15px;font-weight:700;color:var(--maroon,#6b0f1a)">${escHtml(subject_name)}</div>
+              <div style="font-size:12px;color:var(--gray-500,#888);margin-top:2px">📚 ${escHtml(class_name)}</div>
+            </div>
+            ${hasData ? `
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                ${_badge(totals.present, 'present')}
+                ${_badge(totals.absent,  'absent')}
+                ${_badge(totals.late,    'late')}
+                ${_badge(totals.excused, 'excused')}
+              </div>` : ''}
+          </div>
+
+          <!-- Overall rate bar -->
+          ${hasData ? `
+          <div style="padding:10px 20px;border-bottom:1px solid #f5f5f5;display:flex;align-items:center;gap:12px">
+            <span style="font-size:12px;color:#777;white-space:nowrap">Overall Attendance</span>
+            <div style="flex:1">${_rateBar(totals.present, totals.total)}</div>
+            <span style="font-size:11px;color:#aaa;white-space:nowrap">${totals.present}/${totals.total} sessions</span>
+          </div>` : ''}
+
+          <!-- Per-term table -->
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse">
+              <thead>
+                <tr style="background:#fafafa">
+                  <th style="padding:8px 12px;text-align:left;font-size:11px;color:#999;font-weight:600;border-bottom:1px solid #eee">TERM</th>
+                  <th style="padding:8px 12px;text-align:center;font-size:11px;color:#2e6b3e;font-weight:600;border-bottom:1px solid #eee">PRESENT</th>
+                  <th style="padding:8px 12px;text-align:center;font-size:11px;color:#c0392b;font-weight:600;border-bottom:1px solid #eee">ABSENT</th>
+                  <th style="padding:8px 12px;text-align:center;font-size:11px;color:#a05c00;font-weight:600;border-bottom:1px solid #eee">LATE</th>
+                  <th style="padding:8px 12px;text-align:center;font-size:11px;color:#1a4a8a;font-weight:600;border-bottom:1px solid #eee">EXCUSED</th>
+                  <th style="padding:8px 12px;text-align:center;font-size:11px;color:#666;font-weight:600;border-bottom:1px solid #eee">TOTAL</th>
+                  <th style="padding:8px 16px;text-align:left;font-size:11px;color:#666;font-weight:600;border-bottom:1px solid #eee">ATTENDANCE RATE</th>
+                </tr>
+              </thead>
+              <tbody>${termRows}</tbody>
+            </table>
+          </div>
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="section-header">
+        <div class="section-header-left">
+          <h2>📋 My Attendance</h2>
+          <p>${data.length} subject${data.length !== 1 ? 's' : ''}</p>
+        </div>
+      </div>
+      <div style="margin-top:12px">${cards}</div>
+      <p style="margin-top:4px;font-size:11px;color:#bbb;text-align:center">
+        This is a read-only view of attendance recorded by your teacher. Contact your teacher for any discrepancies.
+      </p>`;
   },
 };

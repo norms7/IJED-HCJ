@@ -520,6 +520,14 @@ class LMSAdminAPI {
     return this._request("POST", `/student/me/modules/${moduleId}/read`);
   }
 
+  /**
+   * Get the student's own attendance summary, grouped by subject and term.
+   * Returns an array of { subject_id, subject_name, class_name, terms[], totals }.
+   */
+  async getMyAttendance() {
+    return this._request("GET", "/student/me/attendance");
+  }
+
   // ── Legacy / utility ──────────────────────────────────────────────────────
 
   async request(method, path, body) {
