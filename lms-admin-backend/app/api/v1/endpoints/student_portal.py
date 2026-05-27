@@ -25,6 +25,8 @@ from app.schemas.schemas import ModuleOut
 
 router = APIRouter(prefix="/student", tags=["Student Portal"])
 
+# ── Note: get_current_student is defined below; attendance endpoint at bottom ─
+
 
 # ── Auth dependency ───────────────────────────────────────────────────────────
 
@@ -199,3 +201,164 @@ async def get_student_modules(
         out.activity_count = len(m.activities)
         result.append(out)
     return result
+
+# ── GET /student/me/attendance ────────────────────────────────────────────────
+
+@router.get("/me/attendance", summary="Get my attendance summary per subject")
+async def get_my_attendance(
+    student=Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Returns a read-only attendance summary for the logged-in student.
+
+    For every subject the student is enrolled in, returns:
+      - subject name
+      - class name
+      - per-term breakdown: present / absent / late / excused / total_meetings
+      - overall totals across all terms
+
+    Only sessions where has_class=True count as meetings (same logic as teacher view).
+    """
+    from app.models.models import (
+        AttendanceSession, AttendanceRecord,
+        TeacherClassAssignment, Subject,
+        StudentSubjectEnrollment, Section,
+    )
+
+    # ── 1. Resolve which (subject_id, class_id) pairs the student belongs to ─
+    direct = student.subject_enrollments or []
+    if direct:
+        subject_ids = [e.subject_id for e in direct]
+        tca_result = await db.execute(
+            select(TeacherClassAssignment)
+            .options(
+                selectinload(TeacherClassAssignment.subject),
+                selectinload(TeacherClassAssignment.class_),
+            )
+            .where(TeacherClassAssignment.subject_id.in_(subject_ids))
+        )
+        tca_rows = tca_result.scalars().all()
+        # Build list of unique (subject_id, class_id, subject_name, class_name)
+        seen_pairs: dict[int, dict] = {}
+        for tca in tca_rows:
+            if tca.subject_id not in seen_pairs:
+                seen_pairs[tca.subject_id] = {
+                    "subject_id":   tca.subject_id,
+                    "subject_name": tca.subject.name,
+                    "class_id":     tca.class_.id,
+                    "class_name":   tca.class_.name,
+                }
+        subject_class_pairs = list(seen_pairs.values())
+    else:
+        # Fallback: section → class → teacher assignments
+        class_ids = {
+            a.section.class_id
+            for a in student.section_assignments
+            if a.section and a.section.class_id
+        }
+        if not class_ids:
+            return []
+        tca_result = await db.execute(
+            select(TeacherClassAssignment)
+            .options(
+                selectinload(TeacherClassAssignment.subject),
+                selectinload(TeacherClassAssignment.class_),
+            )
+            .where(TeacherClassAssignment.class_id.in_(class_ids))
+        )
+        seen_pairs = {}
+        for tca in tca_result.scalars().all():
+            if tca.subject_id not in seen_pairs:
+                seen_pairs[tca.subject_id] = {
+                    "subject_id":   tca.subject_id,
+                    "subject_name": tca.subject.name,
+                    "class_id":     tca.class_.id,
+                    "class_name":   tca.class_.name,
+                }
+        subject_class_pairs = list(seen_pairs.values())
+
+    if not subject_class_pairs:
+        return []
+
+    # ── 2. Fetch all sessions across these (class_id, subject_id) pairs ───────
+    subject_ids_list = [p["subject_id"] for p in subject_class_pairs]
+    class_ids_list   = [p["class_id"]   for p in subject_class_pairs]
+
+    sessions_result = await db.execute(
+        select(AttendanceSession).where(
+            AttendanceSession.class_id.in_(class_ids_list),
+            AttendanceSession.subject_id.in_(subject_ids_list),
+            AttendanceSession.has_class == True,
+        )
+    )
+    sessions = sessions_result.scalars().all()
+    session_ids = [s.id for s in sessions]
+
+    # ── 3. Fetch this student's attendance records ─────────────────────────────
+    records_by_session: dict[int, str] = {}  # session_id → status
+    if session_ids:
+        rec_result = await db.execute(
+            select(AttendanceRecord).where(
+                AttendanceRecord.session_id.in_(session_ids),
+                AttendanceRecord.student_id == student.id,
+            )
+        )
+        for rec in rec_result.scalars().all():
+            records_by_session[rec.session_id] = rec.status
+
+    # ── 4. Aggregate per subject per term ──────────────────────────────────────
+    # Build a lookup: (class_id, subject_id) → pair info
+    pair_lookup = {
+        (p["class_id"], p["subject_id"]): p
+        for p in subject_class_pairs
+    }
+
+    # subject_id → { term → { present, absent, late, excused, total } }
+    agg: dict[int, dict[str, dict]] = {}
+    for sid in [p["subject_id"] for p in subject_class_pairs]:
+        agg[sid] = {}
+
+    for sess in sessions:
+        key = (sess.class_id, sess.subject_id)
+        if key not in pair_lookup:
+            continue
+        sid  = sess.subject_id
+        term = sess.term or "1st"
+
+        if term not in agg[sid]:
+            agg[sid][term] = {"present": 0, "absent": 0, "late": 0, "excused": 0, "total": 0}
+
+        agg[sid][term]["total"] += 1
+        status = records_by_session.get(sess.id, "absent")  # no record = absent
+        if status in agg[sid][term]:
+            agg[sid][term][status] += 1
+        else:
+            agg[sid][term]["absent"] += 1
+
+    # ── 5. Build response ──────────────────────────────────────────────────────
+    TERM_ORDER = ["1st", "2nd", "3rd", "4th"]
+    output = []
+    for pair in subject_class_pairs:
+        sid       = pair["subject_id"]
+        term_data = agg.get(sid, {})
+
+        terms_list = []
+        totals = {"present": 0, "absent": 0, "late": 0, "excused": 0, "total": 0}
+        for term in TERM_ORDER:
+            if term in term_data:
+                t = term_data[term]
+                terms_list.append({"term": term, **t})
+                for k in totals:
+                    totals[k] += t.get(k, 0)
+
+        output.append({
+            "subject_id":   pair["subject_id"],
+            "subject_name": pair["subject_name"],
+            "class_id":     pair["class_id"],
+            "class_name":   pair["class_name"],
+            "terms":        terms_list,
+            "totals":       totals,
+        })
+
+    return output

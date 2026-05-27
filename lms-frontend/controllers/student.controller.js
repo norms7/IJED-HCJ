@@ -220,4 +220,20 @@ const StudentController = {
       // Silently ignore failures — this is non-critical tracking
     });
   },
+
+  // ── Attendance view ───────────────────────────────────────
+
+  loadAttendance() {
+    const area = document.getElementById('content-area');
+    area.innerHTML = StudentView.attendanceLoading();
+
+    api.getMyAttendance()
+      .then(data => {
+        area.innerHTML = StudentView.attendance(data);
+      })
+      .catch(err => {
+        Toast.show('Failed to load attendance: ' + err.message, 'error');
+        area.innerHTML = StudentView.attendance([]);
+      });
+  },
 };

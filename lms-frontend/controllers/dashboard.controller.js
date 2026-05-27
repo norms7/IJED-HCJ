@@ -33,6 +33,7 @@ const DashboardController = {
       { id: 'modules',     icon: '📄', label: 'Modules' },
       { id: 'activities',  icon: '📋', label: 'Activities' },
       { id: 'my-grades',   icon: '📊', label: 'My Grades' },
+      { id: 'attendance',  icon: '🗓️', label: 'Attendance' },
       { id: 'calendar',    icon: '📅', label: 'Calendar' },
     ],
   },
@@ -104,6 +105,7 @@ const DashboardController = {
       if (id === 'modules')     return StudentView.modules(null);
       if (id === 'activities')  return StudentView.activitiesLoading();
       if (id === 'my-grades')   return StudentView.myGrades();
+      if (id === 'attendance')  return StudentView.attendanceLoading();
     }
     return `<div class="empty-state"><div class="empty-state-icon">🚧</div><div class="empty-state-title">Section Coming Soon</div></div>`;
   },
@@ -294,6 +296,12 @@ const DashboardController = {
     // ── Student Activities ───────────────────────────────────────────────
     if (sectionId === 'activities' && role === 'student') {
       StudentController.loadActivities();
+      return;
+    }
+
+    // ── Student Attendance ───────────────────────────────────────────────
+    if (sectionId === 'attendance' && role === 'student') {
+      StudentController.loadAttendance();
       return;
     }
 
