@@ -28,9 +28,11 @@ api_router.include_router(classes_router)
 api_router.include_router(sections_router)
 api_router.include_router(subjects_router)
 api_router.include_router(teacher_portal_router)
-api_router.include_router(student_portal_router)
-api_router.include_router(teacher_activity_router)
+# student_activity_router MUST come before student_portal_router so the correct
+# /student/me/activities routes (with proper submission data) take priority.
 api_router.include_router(student_activity_router)
 api_router.include_router(student_dashboard_router)
-api_router.include_router(attendance_router)
 api_router.include_router(student_attendance_router)
+api_router.include_router(student_portal_router)   # kept last — only /me/modules + /me/subjects remain
+api_router.include_router(teacher_activity_router)
+api_router.include_router(attendance_router)
