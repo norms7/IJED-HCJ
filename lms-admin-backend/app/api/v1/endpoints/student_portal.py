@@ -282,13 +282,19 @@ async def get_my_attendance(
         return []
 
     # ── 2. Fetch all sessions across these (class_id, subject_id) pairs ───────
-    subject_ids_list = [p["subject_id"] for p in subject_class_pairs]
-    class_ids_list   = [p["class_id"]   for p in subject_class_pairs]
-
+    # Build OR conditions so we only match valid (class_id, subject_id) pairs,
+    # not any cross-product of class_ids × subject_ids.
+    from sqlalchemy import or_, and_
+    pair_conditions = or_(*(
+        and_(
+            AttendanceSession.class_id   == p["class_id"],
+            AttendanceSession.subject_id == p["subject_id"],
+        )
+        for p in subject_class_pairs
+    ))
     sessions_result = await db.execute(
         select(AttendanceSession).where(
-            AttendanceSession.class_id.in_(class_ids_list),
-            AttendanceSession.subject_id.in_(subject_ids_list),
+            pair_conditions,
             AttendanceSession.has_class == True,
         )
     )

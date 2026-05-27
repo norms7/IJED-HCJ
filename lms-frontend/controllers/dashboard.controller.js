@@ -169,21 +169,31 @@ const DashboardController = {
         api.getStudentActivities(),
       ])
         .then(([stats, subjects, activities]) => {
-          // Build recent grades: graded submissions, most-recent first
-          const recentGrades = activities
+          // Build recent grades: one most-recent graded activity per enrolled subject
+          const gradedActivities = activities
             .filter(a => a.submission && a.submission.is_graded && a.submission.score !== null)
             .sort((a, b) => {
               const da = a.submission.submitted_at ? new Date(a.submission.submitted_at) : 0;
               const db_ = b.submission.submitted_at ? new Date(b.submission.submitted_at) : 0;
               return db_ - da;
-            })
-            .slice(0, 6)
-            .map(a => ({
-              score:      a.submission.score,
-              max_score:  a.submission.max_score,
-              _activity:  a.title,
-              _subject:   a.subject_id ? (subjects.find(s => s.subject_id === a.subject_id) || {}).subject_name || '?' : '?',
-            }));
+            });
+          // Pick the most recent graded activity for each enrolled subject
+          const seenSubjects = new Set();
+          const recentGrades = [];
+          for (const a of gradedActivities) {
+            if (!seenSubjects.has(a.subject_id)) {
+              seenSubjects.add(a.subject_id);
+              const subjectName = a.subject_id
+                ? (subjects.find(s => s.subject_id === a.subject_id) || {}).subject_name || '?'
+                : '?';
+              recentGrades.push({
+                score:      a.submission.score,
+                max_score:  a.submission.max_score,
+                _activity:  a.title,
+                _subject:   subjectName,
+              });
+            }
+          }
           area.innerHTML = StudentView.dashboard(user, stats, subjects, recentGrades);
           this._attachSearch();
         })
