@@ -13,7 +13,10 @@ class Settings(BaseSettings):
     SUPABASE_URL: str = ""
     SUPABASE_SERVICE_KEY: str = ""
 
-    # CORS origins — comma OR space separated in env var
+    # CORS origins — comma OR space separated in env var.
+    # On Render, set CORS_ORIGINS in the environment dashboard to:
+    #   https://ijedlms.vercel.app
+    # (The defaults below are used when no env var is set — i.e. local dev.)
     CORS_ORIGINS: str = (
         "http://localhost:3000 "
         "http://localhost:5500 "
