@@ -12,6 +12,7 @@ from app.api.v1.endpoints.teacher_portal import student_router as student_portal
 from app.api.v1.endpoints.teacher_activities import activity_router as teacher_activity_router
 from app.api.v1.endpoints.student_activities import student_activity_router
 from app.api.v1.endpoints.student_dashboard import student_dashboard_router
+from app.api.v1.endpoints.attendance import router as attendance_router
 
 api_router = APIRouter()
 
@@ -30,3 +31,4 @@ api_router.include_router(student_portal_router)
 api_router.include_router(teacher_activity_router)
 api_router.include_router(student_activity_router)
 api_router.include_router(student_dashboard_router)
+api_router.include_router(attendance_router)

@@ -356,23 +356,25 @@ const TeacherView = {
       const activityPct = totalPossible > 0 ? Math.round(totalEarned / totalPossible * 100) : null;
 
       // Read modules
-      const readCount = stu._modulesRead ?? 0;
+      const readCount   = stu._modulesRead ?? 0;
+      const attPresent  = stu._attPresent  ?? 0;
+      const attTotal    = stu._attTotal    ?? 0;
 
-      // Weighted grade computation (activities 60%, modules 40%, attendance TBD)
-      // Weights: Activities 60%, Modules 40% — Attendance slot reserved for future
-      const WEIGHT_ACTIVITIES = 0.60;
-      const WEIGHT_MODULES    = 0.40;
-      // WEIGHT_ATTENDANCE = 0.XX; // TODO: add attendance column when available
+      // Weighted grade: Activities 60%, Modules 30%, Attendance 10%
+      const WEIGHT_ACTIVITIES  = 0.60;
+      const WEIGHT_MODULES     = 0.30;
+      const WEIGHT_ATTENDANCE  = 0.10;
 
-      const modulePct = totalModules > 0 ? Math.round((readCount / totalModules) * 100) : 0;
+      const modulePct     = totalModules > 0 ? Math.round((readCount  / totalModules) * 100) : 0;
+      const attendancePct = attTotal     > 0 ? Math.round((attPresent / attTotal)     * 100) : null;
 
       let overallPct = null;
-      if (activityPct !== null) {
-        overallPct = Math.round(
-          activityPct   * WEIGHT_ACTIVITIES +
-          modulePct     * WEIGHT_MODULES
-        );
-      } else if (submittedCount === 0 && totalModules > 0) {
+      if (activityPct !== null || attendancePct !== null) {
+        const actComponent = (activityPct  ?? 0) * WEIGHT_ACTIVITIES;
+        const modComponent =  modulePct          * WEIGHT_MODULES;
+        const attComponent = (attendancePct ?? 0) * WEIGHT_ATTENDANCE;
+        overallPct = Math.round(actComponent + modComponent + attComponent);
+      } else if (totalModules > 0) {
         overallPct = Math.round(modulePct * WEIGHT_MODULES);
       }
 
@@ -385,6 +387,10 @@ const TeacherView = {
 
       const actPctBadge = activityPct !== null
         ? `<span class="badge ${activityPct >= 75 ? 'badge-green' : 'badge-danger'}" style="font-size:11px">${activityPct}%</span>`
+        : `<span class="badge badge-gray" style="font-size:11px">—</span>`;
+
+      const attBadge = attTotal > 0
+        ? `<span style="font-weight:600">${attPresent}</span><span style="color:var(--gray-400)">/${attTotal}</span>`
         : `<span class="badge badge-gray" style="font-size:11px">—</span>`;
 
       const overallBadge = overallPct !== null
@@ -403,9 +409,7 @@ const TeacherView = {
         <td style="text-align:center">
           <span style="font-weight:600">${readCount}</span>/<span style="color:var(--gray-400)">${totalModules}</span>
         </td>
-        <td style="text-align:center">
-          <span class="badge badge-gray" style="font-size:11px" title="Attendance tracking coming soon">— / —</span>
-        </td>
+        <td style="text-align:center">${attBadge}</td>
         <td style="text-align:center">${overallBadge}</td>
         <td style="text-align:center">
           <span class="badge ${gradeColor}" style="font-size:12px;font-weight:700">${escHtml(String(finalGrade))}</span>
@@ -446,12 +450,14 @@ const TeacherView = {
           <div style="font-size:22px;font-weight:700;color:var(--maroon)">${totalActivities}</div>
         </div>
         <div class="stat-card" style="flex:1;min-width:140px;padding:12px 16px">
-          <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px">Modules (40%)</div>
+          <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px">Modules (30%)</div>
           <div style="font-size:22px;font-weight:700;color:var(--maroon)">${totalModules}</div>
         </div>
-        <div class="stat-card" style="flex:1;min-width:140px;padding:12px 16px;border:2px dashed var(--gray-200)">
-          <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px">Attendance</div>
-          <div style="font-size:13px;font-weight:600;color:var(--gray-400)">Coming Soon</div>
+        <div class="stat-card" style="flex:1;min-width:140px;padding:12px 16px">
+          <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px">Attendance (10%)</div>
+          <div style="font-size:22px;font-weight:700;color:var(--maroon)" id="gb-att-meetings">
+            ${students.length && students[0]._attTotal > 0 ? students[0]._attTotal + ' meetings' : '—'}
+          </div>
         </div>
       </div>
 
@@ -465,7 +471,7 @@ const TeacherView = {
                 <th style="text-align:center">Activities<br><span style="font-weight:400;font-size:10px">(submitted/total)</span></th>
                 <th style="text-align:center">Activity Score<br><span style="font-weight:400;font-size:10px">(60%)</span></th>
                 <th style="text-align:center">Modules Read<br><span style="font-weight:400;font-size:10px">(read/total)</span></th>
-                <th style="text-align:center">Attendance<br><span style="font-weight:400;font-size:10px">(future)</span></th>
+                <th style="text-align:center">Attendance<br><span style="font-weight:400;font-size:10px">(present/total · 10%)</span></th>
                 <th style="text-align:center">Overall %</th>
                 <th style="text-align:center">Final Grade</th>
                 <th>Breakdown</th>
@@ -482,12 +488,346 @@ const TeacherView = {
         1.00 (97-100%) · 1.25 (93-96%) · 1.50 (89-92%) · 1.75 (85-88%) · 2.00 (81-84%) ·
         2.25 (77-80%) · 2.50 (73-76%) · 2.75 (69-72%) · 3.00 (65-68%) · 5.00 (&lt;65% · Failed)
         <br><span style="color:var(--gray-400);margin-top:4px;display:block">
-          Formula: (Activity% × 60%) + (Module Read% × 40%) · Attendance weight reserved for future integration.
+          Formula: (Activity% × 60%) + (Module Read% × 30%) + (Attendance% × 10%)
         </span>
       </div>`;
   },
 
   // ── PH Grade Transmutation (DepEd) ───────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════
+  // ATTENDANCE VIEWS
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // ── Page shell ────────────────────────────────────────────────────────────
+  attendance() {
+    return `
+      <div class="section-header">
+        <div class="section-header-left">
+          <h2>🗓️ Attendance Monitoring</h2>
+          <p id="att-count">Loading sections…</p>
+        </div>
+        <div class="search-box">
+          <span>🔍</span>
+          <input type="text" id="global-search" placeholder="Search sections…" />
+        </div>
+      </div>
+      <div id="att-sections-wrap">
+        <div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Loading…</div></div>
+      </div>`;
+  },
+
+  // ── Sections table ────────────────────────────────────────────────────────
+  attendanceSectionsList(sections) {
+    if (!sections || sections.length === 0) {
+      return `<div class="empty-state">
+        <div class="empty-state-icon">📋</div>
+        <div class="empty-state-title">No sections assigned</div>
+      </div>`;
+    }
+
+    const rows = sections.map(sec => {
+      const subjectNames = sec.subjects.map(s => s.subject_name).join(', ');
+      const sectionNames = sec.sections.map(s => s.name).join(', ') || '—';
+      return `<tr data-searchable style="cursor:pointer"
+          onclick="AttendanceController.openSection(${sec.class_id}, '${escHtml(sec.class_name)}')">
+        <td>
+          <div style="font-weight:600;color:var(--maroon)">${escHtml(sec.class_name)}</div>
+          <div style="font-size:12px;color:var(--gray-400)">${escHtml(sectionNames)}</div>
+        </td>
+        <td>${escHtml(sec.grade_level || '—')}</td>
+        <td style="font-size:12px;color:var(--gray-500)">${escHtml(sec.class_id.toString())}</td>
+        <td>
+          <div style="display:flex;flex-wrap:wrap;gap:4px">
+            ${sec.subjects.map(s =>
+              `<span class="badge badge-maroon" style="font-size:11px">${escHtml(s.subject_name)}</span>`
+            ).join('')}
+          </div>
+        </td>
+        <td style="font-size:12px;color:var(--gray-400)">${escHtml(sec.school_year || '—')}</td>
+        <td>
+          <button class="btn btn-xs btn-primary"
+            onclick="event.stopPropagation();AttendanceController.openSection(${sec.class_id}, '${escHtml(sec.class_name)}')">
+            📋 View Attendance
+          </button>
+        </td>
+      </tr>`;
+    }).join('');
+
+    return `
+      <div class="card">
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Section / Class</th>
+                <th>Grade Level</th>
+                <th>Section ID</th>
+                <th>Subject(s)</th>
+                <th>School Year</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  },
+
+  // ── Section student attendance summary ────────────────────────────────────
+  attendanceSectionDetail(sectionName, data, subjects, currentSubjectId, currentTerm) {
+    const { students, total_meetings } = data;
+    const termOptions = ['1st','2nd','3rd','4th'].map(t =>
+      `<option value="${t}" ${t === currentTerm ? 'selected' : ''}>${t} Quarter</option>`
+    ).join('');
+    const subjOptions = subjects.map(s =>
+      `<option value="${s.subject_id}" ${s.subject_id === currentSubjectId ? 'selected' : ''}>${escHtml(s.subject_name)}</option>`
+    ).join('');
+
+    const rows = students.map(stu => {
+      const pct = total_meetings > 0
+        ? Math.round((stu.present / total_meetings) * 100) : null;
+      const pctBadge = pct !== null
+        ? `<span class="badge ${pct >= 75 ? 'badge-green' : pct >= 60 ? 'badge-gold' : 'badge-danger'}">${pct}%</span>`
+        : `<span class="badge badge-gray">—</span>`;
+      return `<tr data-searchable>
+        <td>
+          <div style="font-weight:600">${escHtml(stu.first_name + ' ' + stu.last_name)}</div>
+        </td>
+        <td style="font-size:13px;color:var(--gray-500)">${escHtml(stu.student_number || '—')}</td>
+        <td style="text-align:center;font-weight:600;color:var(--green)">${stu.present}</td>
+        <td style="text-align:center;font-weight:600;color:var(--red, #dc2626)">${stu.absent}</td>
+        <td style="text-align:center;font-weight:600;color:var(--gold, #d97706)">${stu.late}</td>
+        <td style="text-align:center;font-weight:600;color:var(--gray-500)">${stu.excused}</td>
+        <td style="text-align:center">${total_meetings}</td>
+        <td style="text-align:center">${pctBadge}</td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="8" class="text-center text-muted" style="padding:40px">No students enrolled.</td></tr>`;
+
+    return `
+      <div class="section-header">
+        <div class="section-header-left">
+          <div style="display:flex;align-items:center;gap:10px">
+            <button class="btn btn-ghost btn-sm"
+              onclick="AttendanceController.backToSections()" style="padding:4px 8px">← Back</button>
+            <div>
+              <h2>${escHtml(sectionName)} <span style="font-size:16px;font-weight:400;color:var(--gray-400)">(${students.length} students)</span></h2>
+              <p>Attendance Summary</p>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select id="att-subject-filter" class="form-control" style="width:auto;font-size:13px"
+            onchange="AttendanceController.reloadSectionDetail()">
+            <option value="">All Subjects</option>
+            ${subjOptions}
+          </select>
+          <select id="att-term-filter" class="form-control" style="width:auto;font-size:13px"
+            onchange="AttendanceController.reloadSectionDetail()">
+            <option value="">All Terms</option>
+            ${termOptions}
+          </select>
+          <div class="search-box" style="margin:0">
+            <span>🔍</span>
+            <input type="text" id="global-search" placeholder="Search students…" />
+          </div>
+          <button class="btn btn-primary btn-sm"
+            onclick="AttendanceController.openTakeAttendance()">
+            📝 Take Attendance
+          </button>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+        <div class="stat-card" style="flex:1;min-width:120px;padding:12px 16px">
+          <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px">Total Meetings</div>
+          <div style="font-size:22px;font-weight:700;color:var(--maroon)">${total_meetings}</div>
+        </div>
+        <div class="stat-card" style="flex:1;min-width:120px;padding:12px 16px">
+          <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px">Students</div>
+          <div style="font-size:22px;font-weight:700;color:var(--maroon)">${students.length}</div>
+        </div>
+        <div class="stat-card" style="flex:1;min-width:120px;padding:12px 16px">
+          <div style="font-size:11px;color:var(--green,#16a34a);text-transform:uppercase;letter-spacing:.5px">Avg Present</div>
+          <div style="font-size:22px;font-weight:700;color:var(--green,#16a34a)">
+            ${students.length && total_meetings
+              ? Math.round(students.reduce((a,s)=>a+s.present,0) / students.length) + '/' + total_meetings
+              : '—'}
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Student Name</th>
+                <th>LRN / Stud. No.</th>
+                <th style="text-align:center;color:var(--green,#16a34a)">Present</th>
+                <th style="text-align:center;color:#dc2626">Absent</th>
+                <th style="text-align:center;color:#d97706">Late</th>
+                <th style="text-align:center;color:var(--gray-500)">Excused</th>
+                <th style="text-align:center">Total Meetings</th>
+                <th style="text-align:center">Attendance %</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Session History -->
+      <div style="margin-top:20px">
+        <div style="font-weight:600;font-size:14px;color:var(--maroon);margin-bottom:10px">📅 Session History</div>
+        <div id="att-sessions-list">
+          <div style="color:var(--gray-400);font-size:13px">Loading sessions…</div>
+        </div>
+      </div>`;
+  },
+
+  // ── Session history list ───────────────────────────────────────────────────
+  attendanceSessionsList(sessions) {
+    if (!sessions || sessions.length === 0) {
+      return `<div style="color:var(--gray-400);font-size:13px;padding:12px 0">No sessions recorded yet.</div>`;
+    }
+    const rows = sessions.map(s => {
+      const badge = s.has_class
+        ? `<span class="badge badge-green" style="font-size:11px">Class held</span>`
+        : `<span class="badge badge-gray" style="font-size:11px">No class</span>`;
+      return `<div style="display:flex;align-items:center;gap:12px;padding:8px 12px;background:var(--gray-50);border-radius:var(--radius);margin-bottom:6px;font-size:13px">
+        <span style="font-weight:600;color:var(--maroon);min-width:100px">${escHtml(s.session_date)}</span>
+        ${badge}
+        <span class="badge badge-maroon" style="font-size:10px">${escHtml(s.term)} Quarter</span>
+        ${s.notes ? `<span style="color:var(--gray-400);font-size:12px">📝 ${escHtml(s.notes)}</span>` : ''}
+        <div style="margin-left:auto;display:flex;gap:6px">
+          <button class="btn btn-xs btn-outline" onclick="AttendanceController.editSession(${s.id})">✏️ Edit</button>
+          <button class="btn btn-xs btn-danger" onclick="AttendanceController.deleteSession(${s.id}, '${escHtml(s.session_date)}')">🗑️</button>
+        </div>
+      </div>`;
+    }).join('');
+    return rows;
+  },
+
+  // ── Take Attendance modal body ─────────────────────────────────────────────
+  attendanceModal(students, existingSession) {
+    const today = new Date().toISOString().slice(0, 10);
+    const termOptions = ['1st','2nd','3rd','4th'].map(t =>
+      `<option value="${t}" ${(existingSession?.term || '1st') === t ? 'selected' : ''}>${t} Quarter</option>`
+    ).join('');
+
+    const hasClass = existingSession ? existingSession.has_class : true;
+
+    // Build existing record map if editing
+    const existingRecords = {};
+    if (existingSession?.records) {
+      existingSession.records.forEach(r => { existingRecords[r.student_id] = r.status; });
+    }
+
+    const studentRows = students.map(stu => {
+      const status = existingRecords[stu.id] || 'present';
+      return `<tr>
+        <td style="padding:8px 10px;font-size:13px">
+          <div style="font-weight:600">${escHtml(stu.first_name + ' ' + stu.last_name)}</div>
+        </td>
+        <td style="padding:8px 10px;font-size:12px;color:var(--gray-400)">${escHtml(stu.student_number || '—')}</td>
+        <td style="padding:8px 10px;text-align:center">
+          <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:13px">
+            <input type="radio" name="att_${stu.id}" value="present"
+              ${status === 'present' ? 'checked' : ''}
+              style="accent-color:var(--green,#16a34a)"> Present
+          </label>
+        </td>
+        <td style="padding:8px 10px;text-align:center">
+          <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:13px">
+            <input type="radio" name="att_${stu.id}" value="absent"
+              ${status === 'absent' ? 'checked' : ''}
+              style="accent-color:#dc2626"> Absent
+          </label>
+        </td>
+        <td style="padding:8px 10px;text-align:center">
+          <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:13px">
+            <input type="radio" name="att_${stu.id}" value="late"
+              ${status === 'late' ? 'checked' : ''}
+              style="accent-color:#d97706"> Late
+          </label>
+        </td>
+        <td style="padding:8px 10px;text-align:center">
+          <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:13px">
+            <input type="radio" name="att_${stu.id}" value="excused"
+              ${status === 'excused' ? 'checked' : ''}
+              style="accent-color:var(--gray-500)"> Excused
+          </label>
+        </td>
+      </tr>`;
+    }).join('');
+
+    return `
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--gray-500);display:block;margin-bottom:4px">DATE</label>
+          <input type="date" id="att-date" class="form-control"
+            value="${existingSession?.session_date || today}"
+            ${existingSession ? 'readonly style="background:var(--gray-50)"' : ''} />
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--gray-500);display:block;margin-bottom:4px">TERM</label>
+          <select id="att-term" class="form-control">${termOptions}</select>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--gray-500);display:block;margin-bottom:4px">SESSION TYPE</label>
+          <div style="display:flex;gap:8px;padding-top:6px">
+            <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
+              <input type="radio" id="att-has-class-yes" name="att_has_class" value="yes"
+                ${hasClass ? 'checked' : ''}
+                onchange="AttendanceController.toggleHasClass(true)"
+                style="accent-color:var(--maroon)"> Class
+            </label>
+            <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
+              <input type="radio" id="att-has-class-no" name="att_has_class" value="no"
+                ${!hasClass ? 'checked' : ''}
+                onchange="AttendanceController.toggleHasClass(false)"
+                style="accent-color:var(--maroon)"> No Class
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--gray-500);display:block;margin-bottom:4px">NOTES (optional)</label>
+        <input type="text" id="att-notes" class="form-control" placeholder="e.g. Holiday, Field trip…"
+          value="${escHtml(existingSession?.notes || '')}" />
+      </div>
+
+      <div id="att-student-table-wrap" style="margin-top:16px;${!hasClass ? 'display:none' : ''}">
+        <div style="font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">
+          Students — mark status below
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <button class="btn btn-xs btn-outline" onclick="AttendanceController.markAll('present')" style="color:var(--green,#16a34a)">✅ All Present</button>
+          <button class="btn btn-xs btn-outline" onclick="AttendanceController.markAll('absent')" style="color:#dc2626">❌ All Absent</button>
+        </div>
+        <div class="table-wrap" style="max-height:380px;overflow-y:auto">
+          <table style="width:100%;border-collapse:collapse">
+            <thead style="position:sticky;top:0;z-index:1">
+              <tr style="background:var(--gray-50)">
+                <th style="padding:8px 10px;text-align:left;color:var(--maroon);font-size:11px;border-bottom:2px solid var(--rose-mid)">Student Name</th>
+                <th style="padding:8px 10px;text-align:left;color:var(--maroon);font-size:11px;border-bottom:2px solid var(--rose-mid)">LRN / ID</th>
+                <th style="padding:8px 10px;text-align:center;color:var(--green,#16a34a);font-size:11px;border-bottom:2px solid var(--rose-mid)">Present</th>
+                <th style="padding:8px 10px;text-align:center;color:#dc2626;font-size:11px;border-bottom:2px solid var(--rose-mid)">Absent</th>
+                <th style="padding:8px 10px;text-align:center;color:#d97706;font-size:11px;border-bottom:2px solid var(--rose-mid)">Late</th>
+                <th style="padding:8px 10px;text-align:center;color:var(--gray-500);font-size:11px;border-bottom:2px solid var(--rose-mid)">Excused</th>
+              </tr>
+            </thead>
+            <tbody>${studentRows}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="att-no-class-msg" style="${hasClass ? 'display:none' : ''};margin-top:16px;padding:16px;background:var(--gray-50);border-radius:var(--radius);text-align:center;color:var(--gray-400);font-size:13px">
+        📅 No class on this date — this meeting will be counted but no attendance will be recorded.
+      </div>`;
+  },
+
   _toPhGrade(pct) {
     if (pct >= 97) return '1.00';
     if (pct >= 93) return '1.25';

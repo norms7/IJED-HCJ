@@ -24,6 +24,7 @@ const DashboardController = {
       { id: 'modules',     icon: '📄', label: 'Modules' },
       { id: 'activities',  icon: '📝', label: 'Activities' },
       { id: 'grades',      icon: '📊', label: 'Grades' },
+      { id: 'attendance',  icon: '🗓️', label: 'Attendance' },
       { id: 'calendar',    icon: '📅', label: 'Calendar' },
     ],
     student: [
@@ -96,6 +97,7 @@ const DashboardController = {
       if (id === 'modules')     return TeacherView.modules(user, null);
       if (id === 'activities')  return TeacherView.activities(user);
       if (id === 'grades')      return TeacherView.grades(user);
+      if (id === 'attendance')  return TeacherView.attendance(user);
     }
     if (role === 'student') {
       if (id === 'my-subjects') return StudentView.mySubjects();
@@ -286,6 +288,13 @@ const DashboardController = {
     if (sectionId === 'grades' && role === 'teacher') {
       area.innerHTML = TeacherView.grades(user);
       GradebookController.loadSections();
+      return;
+    }
+
+    // ── Teacher Attendance ────────────────────────────────────────────────────
+    if (sectionId === 'attendance' && role === 'teacher') {
+      area.innerHTML = TeacherView.attendance(user);
+      AttendanceController.loadSections();
       return;
     }
 

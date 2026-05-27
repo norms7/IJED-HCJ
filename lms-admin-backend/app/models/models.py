@@ -2,11 +2,11 @@
 SQLAlchemy ORM models for the LMS Admin module.
 All tables use Integer PKs for simplicity; swap to UUID if preferred.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date as date_type
 from typing import Optional
 
 from sqlalchemy import (
-    Boolean, DateTime, ForeignKey, Integer, String, Text,
+    Boolean, Date, DateTime, ForeignKey, Integer, String, Text,
     UniqueConstraint, func, Index,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -433,3 +433,48 @@ class Notification(Base):
 
     target_user: Mapped["User"] = relationship("User", foreign_keys=[target_user_id])
     actor_user:  Mapped[Optional["User"]] = relationship("User", foreign_keys=[actor_user_id])
+
+
+# ── AttendanceSession ──────────────────────────────────────────────────────────
+
+class AttendanceSession(Base):
+    """One class meeting per section+subject+date. has_class=False = No Class day."""
+    __tablename__ = "attendance_sessions"
+    __table_args__ = (
+        UniqueConstraint("class_id", "subject_id", "session_date",
+                         name="uq_attendance_session_class_subject_date"),
+    )
+
+    id:           Mapped[int]            = mapped_column(Integer, primary_key=True)
+    teacher_id:   Mapped[int]            = mapped_column(ForeignKey("teachers.id",  ondelete="CASCADE"), nullable=False)
+    class_id:     Mapped[int]            = mapped_column(ForeignKey("classes.id",   ondelete="CASCADE"), nullable=False)
+    subject_id:   Mapped[Optional[int]]  = mapped_column(ForeignKey("subjects.id",  ondelete="SET NULL"), nullable=True)
+    term:         Mapped[str]            = mapped_column(String(20), nullable=False, default="1st")
+    session_date: Mapped[date_type]       = mapped_column(Date, nullable=False)
+    has_class:    Mapped[bool]           = mapped_column(Boolean, nullable=False, default=True)
+    notes:        Mapped[Optional[str]]  = mapped_column(Text, nullable=True)
+    created_at:   Mapped[datetime]       = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    records: Mapped[list["AttendanceRecord"]] = relationship(
+        "AttendanceRecord", back_populates="session", cascade="all, delete-orphan"
+    )
+
+
+# ── AttendanceRecord ───────────────────────────────────────────────────────────
+
+class AttendanceRecord(Base):
+    """One attendance record per student per session."""
+    __tablename__ = "attendance_records"
+    __table_args__ = (
+        UniqueConstraint("session_id", "student_id", name="uq_att_record_session_student"),
+    )
+
+    id:         Mapped[int]           = mapped_column(Integer, primary_key=True)
+    session_id: Mapped[int]           = mapped_column(ForeignKey("attendance_sessions.id", ondelete="CASCADE"), nullable=False)
+    student_id: Mapped[int]           = mapped_column(ForeignKey("students.id",            ondelete="CASCADE"), nullable=False)
+    status:     Mapped[str]           = mapped_column(String(10), nullable=False, default="absent")
+    # status: present | absent | late | excused
+    remarks:    Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    session: Mapped["AttendanceSession"] = relationship("AttendanceSession", back_populates="records")
+    student: Mapped["Student"]           = relationship("Student")

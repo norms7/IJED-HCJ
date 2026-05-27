@@ -87,10 +87,11 @@ const GradebookController = {
       }
       console.log('[Gradebook] classSubjects:', classSubjects);
 
-      // ── Parallel: students + per-subject activities & modules + module reads ─
-      const [students, moduleReadsData, ...subjectData] = await Promise.all([
+      // ── Parallel: students + module reads + attendance + activities/modules ──
+      const [students, moduleReadsData, attendanceSummary, ...subjectData] = await Promise.all([
         api.getClassStudents(classId).catch(e => { console.warn('[Gradebook] getClassStudents:', e); return []; }),
         api.getClassModuleReads(classId).catch(e => { console.warn('[Gradebook] getClassModuleReads:', e); return { module_reads: {}, total_modules: 0 }; }),
+        api.getAttendanceSectionStudents(classId).catch(() => ({ students: [], total_meetings: 0 })),
         ...classSubjects.map(sub =>
           Promise.all([
             api.getTeacherActivities({ subject_id: sub.subject_id }).catch(() => []),
@@ -117,13 +118,19 @@ const GradebookController = {
         )
       );
 
-      // Annotate students with real module read counts from the new endpoint
+      // Annotate students with real module read + attendance counts
       const readMap = moduleReadsData.module_reads || {};
+      const attMap  = {};
+      const attTotal = attendanceSummary.total_meetings || 0;
+      (attendanceSummary.students || []).forEach(s => { attMap[s.id] = s; });
+
       const studentsAnnotated = students.map(stu => ({
         ...stu,
-        _modulesRead: readMap[String(stu.id)] ?? readMap[stu.id] ?? 0,
+        _modulesRead:     readMap[String(stu.id)] ?? readMap[stu.id] ?? 0,
+        _attPresent:      attMap[stu.id]?.present  ?? 0,
+        _attTotal:        attTotal,
       }));
-      console.log('[Gradebook] readMap:', readMap, '| sample student id:', students[0]?.id);
+      console.log('[Gradebook] readMap:', readMap, '| attTotal:', attTotal, '| sample student id:', students[0]?.id);
 
       this._lastExportData = {
         sectionName,
@@ -234,7 +241,7 @@ const GradebookController = {
     const headerRow = [
       'Student Name', 'LRN / Student No.',
       `Activities Submitted (/${activities.length})`, 'Activity Score %',
-      `Modules Read (/${modules.length})`, 'Attendance (reserved)',
+      `Modules Read (/${modules.length})`, 'Attendance Present', 'Attendance Total', 'Attendance %',
       'Overall %', 'Final Grade (PH)',
     ];
 
@@ -257,23 +264,32 @@ const GradebookController = {
         }
       });
 
-      const activityPct = totalPossible > 0 ? Math.round(totalEarned / totalPossible * 100) : null;
-      const readCount   = stu._modulesRead ?? 0;
-      const modulePct   = modules.length > 0 ? Math.round((readCount / modules.length) * 100) : 0;
+      const activityPct   = totalPossible > 0 ? Math.round(totalEarned / totalPossible * 100) : null;
+      const readCount     = stu._modulesRead ?? 0;
+      const modulePct     = modules.length > 0 ? Math.round((readCount / modules.length) * 100) : 0;
+      const attPresent    = stu._attPresent ?? 0;
+      const attTotal      = stu._attTotal   ?? 0;
+      const attendancePct = attTotal > 0 ? Math.round((attPresent / attTotal) * 100) : null;
 
       let overallPct = null;
-      if (activityPct !== null) {
-        overallPct = Math.round(activityPct * WEIGHT_ACTIVITIES + modulePct * WEIGHT_MODULES);
+      if (activityPct !== null || attendancePct !== null) {
+        overallPct = Math.round(
+          (activityPct  ?? 0) * 0.60 +
+           modulePct          * 0.30 +
+          (attendancePct ?? 0) * 0.10
+        );
       } else if (modules.length > 0) {
-        overallPct = Math.round(modulePct * WEIGHT_MODULES);
+        overallPct = Math.round(modulePct * 0.30);
       }
 
       return [
         fullName, studentNum, stuSubs.length,
-        activityPct !== null ? activityPct / 100 : '',
-        readCount, '',
-        overallPct !== null ? overallPct / 100 : '',
-        overallPct !== null ? TeacherView._toPhGrade(overallPct) : '',
+        activityPct   !== null ? activityPct   / 100 : '',
+        readCount,
+        attPresent, attTotal,
+        attendancePct !== null ? attendancePct / 100 : '',
+        overallPct    !== null ? overallPct    / 100 : '',
+        overallPct    !== null ? TeacherView._toPhGrade(overallPct) : '',
       ];
     });
 
@@ -303,9 +319,9 @@ const GradebookController = {
     const wb   = XLSX.utils.book_new();
 
     const ws1 = XLSX.utils.aoa_to_sheet([headerRow, ...dataRows]);
-    ws1['!cols'] = [{ wch:28 },{ wch:18 },{ wch:20 },{ wch:16 },{ wch:18 },{ wch:14 },{ wch:14 },{ wch:14 }];
+    ws1['!cols'] = [{ wch:28 },{ wch:18 },{ wch:20 },{ wch:16 },{ wch:18 },{ wch:14 },{ wch:14 },{ wch:14 },{ wch:14 },{ wch:16 }];
     for (let r = 1; r <= dataRows.length; r++) {
-      [3, 6].forEach(c => {
+      [3, 7, 8].forEach(c => {
         const cell = XLSX.utils.encode_cell({ r, c });
         if (ws1[cell] && ws1[cell].v !== '') ws1[cell].z = '0.00%';
       });
@@ -328,8 +344,7 @@ const GradebookController = {
       ['2.50','73–76%','Passing'],['2.75','69–72%','Conditional'],['3.00','65–68%','Barely Passing'],
       ['5.00','Below 65%','Failed'],[],
       ['Formula:','',''],
-      ['Overall % = (Activity% × 60%) + (Module Read% × 40%)','',''],
-      ['Attendance weight is reserved for future integration.','',''],
+      ['Overall % = (Activity% × 60%) + (Module Read% × 30%) + (Attendance% × 10%)','',''],
     ]);
     ws3['!cols'] = [{ wch:14 },{ wch:16 },{ wch:20 }];
     XLSX.utils.book_append_sheet(wb, ws3, 'Grade Scale');
