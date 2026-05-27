@@ -30,6 +30,11 @@ from app.api.v1.endpoints.notifications import notif_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Auto-create any new tables (safe — skips existing ones)
+    from app.db.session import engine, Base
+    import app.models.models  # noqa: F401 — ensures all models are registered
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
     print("✅  LMS Admin API started")
     yield
     print("🛑  LMS Admin API shutting down")

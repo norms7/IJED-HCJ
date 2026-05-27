@@ -561,6 +561,43 @@ class LMSAdminAPI {
   async sendAnnouncement(title, message, target = "all") {
     return this._request("POST", "/notifications/announce", { title, message, target });
   }
+  // ── Attendance ─────────────────────────────────────────────────────────────
+
+  async getAttendanceSections() {
+    return this._request("GET", "/teacher/attendance/sections");
+  }
+
+  async getAttendanceSectionStudents(classId, { subjectId = null, term = null } = {}) {
+    const q = new URLSearchParams();
+    if (subjectId) q.append("subject_id", subjectId);
+    if (term)      q.append("term", term);
+    const qs = q.toString() ? `?${q}` : "";
+    return this._request("GET", `/teacher/attendance/sections/${classId}/students${qs}`);
+  }
+
+  async getAttendanceSessions(classId, { subjectId = null, term = null } = {}) {
+    const q = new URLSearchParams({ class_id: classId });
+    if (subjectId) q.append("subject_id", subjectId);
+    if (term)      q.append("term", term);
+    return this._request("GET", `/teacher/attendance/sessions?${q}`);
+  }
+
+  async getAttendanceSession(sessionId) {
+    return this._request("GET", `/teacher/attendance/sessions/${sessionId}`);
+  }
+
+  async createAttendanceSession(payload) {
+    return this._request("POST", "/teacher/attendance/sessions", payload);
+  }
+
+  async updateAttendanceSession(sessionId, payload) {
+    return this._request("PUT", `/teacher/attendance/sessions/${sessionId}`, payload);
+  }
+
+  async deleteAttendanceSession(sessionId) {
+    return this._request("DELETE", `/teacher/attendance/sessions/${sessionId}`);
+  }
+
 }
 
 const api = new LMSAdminAPI();
