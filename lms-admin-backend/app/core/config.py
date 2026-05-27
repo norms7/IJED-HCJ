@@ -14,9 +14,11 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_KEY: str = ""
 
     # CORS origins — comma OR space separated in env var.
-    # On Render, set CORS_ORIGINS in the environment dashboard to:
-    #   https://ijedlms.vercel.app
-    # (The defaults below are used when no env var is set — i.e. local dev.)
+    # On Render, set CORS_ORIGINS in the environment dashboard to include
+    # ALL required origins, e.g.:
+    #   https://ijedlms.vercel.app http://localhost:5500
+    # The Vercel production URL is always injected automatically below regardless
+    # of what the env var contains.
     CORS_ORIGINS: str = (
         "http://localhost:3000 "
         "http://localhost:5500 "
@@ -28,11 +30,21 @@ class Settings(BaseSettings):
         "https://ijedlms.vercel.app"
     )
 
+    # Production URLs that must always be allowed regardless of env var value.
+    _ALWAYS_ALLOW: list[str] = [
+        "https://ijedlms.vercel.app",
+    ]
+
     @property
     def cors_origins_list(self) -> list[str]:
         # Support both comma-separated and space-separated values
         raw = self.CORS_ORIGINS.replace(",", " ")
-        return [o.strip() for o in raw.split() if o.strip()]
+        origins = [o.strip() for o in raw.split() if o.strip()]
+        # Ensure production URLs are always present even if env var omits them
+        for url in self._ALWAYS_ALLOW:
+            if url not in origins:
+                origins.append(url)
+        return origins
 
     class Config:
         env_file = ".env"
