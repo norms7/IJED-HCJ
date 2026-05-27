@@ -325,144 +325,160 @@ const TeacherView = {
       </div>`;
   },
 
-  // ── Section Gradebook Detail Page ─────────────────────────────────────────
-  gradebookSection(sectionName, students, activities, modules, subjects) {
-    const studentCount = students.length;
+  // ── Section Gradebook Detail Page — per-subject, per-term ────────────────
+  gradebookSection(sectionName, classSubjects, activeSubjectId, activeTerm, students, activities, modules, attendance, loading = false) {
+    const studentCount    = students.length;
     const totalActivities = activities.length;
-    const totalModules = modules.length;
+    const totalModules    = modules.length;
+    const attTotal        = attendance?.total_meetings || 0;
+    const activeSubject   = classSubjects.find(s => s.subject_id === activeSubjectId) || classSubjects[0] || {};
 
-    // Build per-student grade summary rows
-    const rows = students.map(stu => {
-      const studentId   = stu.id;
-      const fullName    = `${stu.user?.first_name || ''} ${stu.user?.last_name || ''}`.trim() || `Student #${studentId}`;
-      const studentNum  = stu.student_number || stu.student_profile?.student_number || '—';
+    // ── Subject dropdown ──────────────────────────────────────────────────
+    const subjectOptions = classSubjects.map(s =>
+      `<option value="${s.subject_id}" ${s.subject_id === activeSubjectId ? 'selected' : ''}>${escHtml(s.subject_name)}</option>`
+    ).join('');
 
-      // Submitted activities for this student
-      const stuSubs = activities.reduce((acc, act) => {
-        const sub = act._submissions?.find(s => s.student_id === studentId);
-        if (sub) acc.push({ act, sub });
-        return acc;
-      }, []);
-      const submittedCount = stuSubs.length;
+    const termOptions = ['1st', '2nd', '3rd', '4th'].map(t =>
+      `<option value="${t}" ${t === activeTerm ? 'selected' : ''}>${t} Quarter</option>`
+    ).join('');
 
-      // Activity score totals
-      let totalEarned = 0, totalPossible = 0;
-      stuSubs.forEach(({ act, sub }) => {
-        if (sub.is_graded && sub.score != null && act.max_score) {
-          totalEarned   += sub.score;
-          totalPossible += act.max_score;
-        }
-      });
-      const activityPct = totalPossible > 0 ? Math.round(totalEarned / totalPossible * 100) : null;
+    // ── Per-student grade rows ─────────────────────────────────────────────
+    const WEIGHT_ACTIVITIES = 0.60;
+    const WEIGHT_MODULES    = 0.30;
+    const WEIGHT_ATTENDANCE = 0.10;
 
-      // Read modules
-      const readCount   = stu._modulesRead ?? 0;
-      const attPresent  = stu._attPresent  ?? 0;
-      const attTotal    = stu._attTotal    ?? 0;
+    const rows = loading
+      ? `<tr><td colspan="9" class="text-center text-muted" style="padding:40px">⏳ Loading grades…</td></tr>`
+      : (students.map(stu => {
+          const studentId  = stu.id;
+          const fullName   = `${stu.user?.first_name || ''} ${stu.user?.last_name || ''}`.trim() || `Student #${studentId}`;
+          const studentNum = stu.student_number || stu.student_profile?.student_number || '—';
 
-      // Weighted grade: Activities 60%, Modules 30%, Attendance 10%
-      const WEIGHT_ACTIVITIES  = 0.60;
-      const WEIGHT_MODULES     = 0.30;
-      const WEIGHT_ATTENDANCE  = 0.10;
+          const stuSubs = activities.reduce((acc, act) => {
+            const sub = act._submissions?.find(s => s.student_id === studentId);
+            if (sub) acc.push({ act, sub });
+            return acc;
+          }, []);
+          const submittedCount = stuSubs.length;
 
-      const modulePct     = totalModules > 0 ? Math.round((readCount  / totalModules) * 100) : 0;
-      const attendancePct = attTotal     > 0 ? Math.round((attPresent / attTotal)     * 100) : null;
+          let totalEarned = 0, totalPossible = 0;
+          stuSubs.forEach(({ act, sub }) => {
+            if (sub.is_graded && sub.score != null && act.max_score) {
+              totalEarned   += sub.score;
+              totalPossible += act.max_score;
+            }
+          });
+          const activityPct   = totalPossible > 0 ? Math.round(totalEarned / totalPossible * 100) : null;
+          const readCount     = stu._modulesRead ?? 0;
+          const attPresent    = stu._attPresent  ?? 0;
+          const stuAttTotal   = stu._attTotal    ?? 0;
+          const modulePct     = totalModules > 0 ? Math.round((readCount / totalModules) * 100) : 0;
+          const attendancePct = stuAttTotal  > 0 ? Math.round((attPresent / stuAttTotal) * 100) : null;
 
-      let overallPct = null;
-      if (activityPct !== null || attendancePct !== null) {
-        const actComponent = (activityPct  ?? 0) * WEIGHT_ACTIVITIES;
-        const modComponent =  modulePct          * WEIGHT_MODULES;
-        const attComponent = (attendancePct ?? 0) * WEIGHT_ATTENDANCE;
-        overallPct = Math.round(actComponent + modComponent + attComponent);
-      } else if (totalModules > 0) {
-        overallPct = Math.round(modulePct * WEIGHT_MODULES);
-      }
+          let overallPct = null;
+          if (activityPct !== null || attendancePct !== null) {
+            overallPct = Math.round(
+              (activityPct  ?? 0) * WEIGHT_ACTIVITIES +
+               modulePct          * WEIGHT_MODULES    +
+              (attendancePct ?? 0) * WEIGHT_ATTENDANCE
+            );
+          }
 
-      // PH grading scale (DepEd transmutation)
-      const finalGrade = overallPct !== null ? TeacherView._toPhGrade(overallPct) : '—';
-      const gradeColor = finalGrade === '—' ? 'badge-gray'
-        : parseFloat(finalGrade) <= 1.75  ? 'badge-green'
-        : parseFloat(finalGrade) <= 2.50  ? 'badge-gold'
-        : 'badge-danger';
+          const finalGrade = overallPct !== null ? TeacherView._toPhGrade(overallPct) : '—';
+          const gradeColor = finalGrade === '—' ? 'badge-gray'
+            : parseFloat(finalGrade) <= 1.75 ? 'badge-green'
+            : parseFloat(finalGrade) <= 2.50 ? 'badge-gold'
+            : 'badge-danger';
 
-      const actPctBadge = activityPct !== null
-        ? `<span class="badge ${activityPct >= 75 ? 'badge-green' : 'badge-danger'}" style="font-size:11px">${activityPct}%</span>`
-        : `<span class="badge badge-gray" style="font-size:11px">—</span>`;
+          const actPctBadge = activityPct !== null
+            ? `<span class="badge ${activityPct >= 75 ? 'badge-green' : 'badge-danger'}" style="font-size:11px">${activityPct}%</span>`
+            : `<span class="badge badge-gray" style="font-size:11px">—</span>`;
 
-      const attBadge = attTotal > 0
-        ? `<span style="font-weight:600">${attPresent}</span><span style="color:var(--gray-400)">/${attTotal}</span>`
-        : `<span class="badge badge-gray" style="font-size:11px">—</span>`;
+          const attBadge = stuAttTotal > 0
+            ? `<span style="font-weight:600">${attPresent}</span><span style="color:var(--gray-400)">/${stuAttTotal}</span>`
+            : `<span class="badge badge-gray" style="font-size:11px">—</span>`;
 
-      const overallBadge = overallPct !== null
-        ? `<span class="badge ${overallPct >= 75 ? 'badge-green' : overallPct >= 60 ? 'badge-gold' : 'badge-danger'}" style="font-size:11px">${overallPct}%</span>`
-        : `<span class="badge badge-gray" style="font-size:11px">—</span>`;
+          const overallBadge = overallPct !== null
+            ? `<span class="badge ${overallPct >= 75 ? 'badge-green' : overallPct >= 60 ? 'badge-gold' : 'badge-danger'}" style="font-size:11px">${overallPct}%</span>`
+            : `<span class="badge badge-gray" style="font-size:11px">—</span>`;
 
-      return `<tr data-searchable>
-        <td>
-          <div style="font-weight:600">${escHtml(fullName)}</div>
-        </td>
-        <td style="font-size:13px;color:var(--gray-500)">${escHtml(studentNum)}</td>
-        <td style="text-align:center">
-          <span style="font-weight:600">${submittedCount}</span>/<span style="color:var(--gray-400)">${totalActivities}</span>
-        </td>
-        <td style="text-align:center">${actPctBadge}</td>
-        <td style="text-align:center">
-          <span style="font-weight:600">${readCount}</span>/<span style="color:var(--gray-400)">${totalModules}</span>
-        </td>
-        <td style="text-align:center">${attBadge}</td>
-        <td style="text-align:center">${overallBadge}</td>
-        <td style="text-align:center">
-          <span class="badge ${gradeColor}" style="font-size:12px;font-weight:700">${escHtml(String(finalGrade))}</span>
-        </td>
-        <td>
-          <button class="btn btn-xs btn-outline" onclick="GradebookController.viewStudentBreakdown(${studentId}, '${escHtml(fullName)}')">🔍 Details</button>
-        </td>
-      </tr>`;
-    }).join('') || `<tr><td colspan="9" class="text-center text-muted" style="padding:40px">No students enrolled in this section.</td></tr>`;
+          return `<tr data-searchable>
+            <td><div style="font-weight:600">${escHtml(fullName)}</div></td>
+            <td style="font-size:13px;color:var(--gray-500)">${escHtml(studentNum)}</td>
+            <td style="text-align:center">
+              <span style="font-weight:600">${submittedCount}</span>/<span style="color:var(--gray-400)">${totalActivities}</span>
+            </td>
+            <td style="text-align:center">${actPctBadge}</td>
+            <td style="text-align:center">
+              <span style="font-weight:600">${readCount}</span>/<span style="color:var(--gray-400)">${totalModules}</span>
+            </td>
+            <td style="text-align:center">${attBadge}</td>
+            <td style="text-align:center">${overallBadge}</td>
+            <td style="text-align:center">
+              <span class="badge ${gradeColor}" style="font-size:12px;font-weight:700">${escHtml(String(finalGrade))}</span>
+            </td>
+            <td>
+              <button class="btn btn-xs btn-outline" onclick="GradebookController.viewStudentBreakdown(${studentId}, '${escHtml(fullName)}')">🔍 Details</button>
+            </td>
+          </tr>`;
+        }).join('') || `<tr><td colspan="9" class="text-center text-muted" style="padding:40px">No students enrolled.</td></tr>`);
 
     return `
+      <!-- Header -->
       <div class="section-header">
         <div class="section-header-left">
           <div style="display:flex;align-items:center;gap:10px">
             <button class="btn btn-ghost btn-sm" onclick="DashboardController.loadSection('grades')" style="padding:4px 8px">← Back</button>
             <div>
               <h2>${escHtml(sectionName)} <span style="font-size:16px;font-weight:400;color:var(--gray-400)">(${studentCount} students)</span></h2>
-              <p>Final Grade Summary · AY ${new Date().getFullYear()}–${new Date().getFullYear() + 1}</p>
+              <p>Grade Summary · AY ${new Date().getFullYear()}–${new Date().getFullYear() + 1}</p>
             </div>
           </div>
         </div>
-        <div class="flex gap-2">
+        <div class="flex gap-2" style="align-items:center">
           <div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search students…" /></div>
-          <button class="btn btn-outline btn-sm" onclick="GradebookController.exportSection('${escHtml(sectionName)}')">
-            📥 Export Excel
-          </button>
+          <button class="btn btn-outline btn-sm" onclick="GradebookController.exportSection()">📥 Export Excel</button>
         </div>
       </div>
 
-      <!-- Grade Weight Legend -->
+      <!-- Subject + Term filter (mirrors Attendance UI) -->
+      <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+        <select id="gb-subject-select" class="form-control" style="min-width:180px;max-width:260px"
+          onchange="GradebookController.onFilterChange()">
+          ${subjectOptions}
+        </select>
+        <select id="gb-term-select" class="form-control" style="min-width:130px;max-width:160px"
+          onchange="GradebookController.onFilterChange()">
+          ${termOptions}
+        </select>
+        <span style="font-size:12px;color:var(--gray-400)">
+          Showing grades for <strong style="color:var(--maroon)">${escHtml(activeSubject.subject_name || '')}</strong> — <strong>${escHtml(activeTerm)} Quarter</strong>
+        </span>
+      </div>
+
+      <!-- Stats bar -->
       <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
-        <div class="stat-card" style="flex:1;min-width:140px;padding:12px 16px">
+        <div class="stat-card" style="flex:1;min-width:130px;padding:12px 16px">
           <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px">Total Students</div>
           <div style="font-size:22px;font-weight:700;color:var(--maroon)">${studentCount}</div>
         </div>
-        <div class="stat-card" style="flex:1;min-width:140px;padding:12px 16px">
+        <div class="stat-card" style="flex:1;min-width:130px;padding:12px 16px">
           <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px">Activities (60%)</div>
           <div style="font-size:22px;font-weight:700;color:var(--maroon)">${totalActivities}</div>
         </div>
-        <div class="stat-card" style="flex:1;min-width:140px;padding:12px 16px">
+        <div class="stat-card" style="flex:1;min-width:130px;padding:12px 16px">
           <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px">Modules (30%)</div>
           <div style="font-size:22px;font-weight:700;color:var(--maroon)">${totalModules}</div>
         </div>
-        <div class="stat-card" style="flex:1;min-width:140px;padding:12px 16px">
+        <div class="stat-card" style="flex:1;min-width:130px;padding:12px 16px">
           <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px">Attendance (10%)</div>
-          <div style="font-size:22px;font-weight:700;color:var(--maroon)" id="gb-att-meetings">
-            ${students.length && students[0]._attTotal > 0 ? students[0]._attTotal + ' meetings' : '—'}
-          </div>
+          <div style="font-size:22px;font-weight:700;color:var(--maroon)">${attTotal > 0 ? attTotal + ' meetings' : '—'}</div>
         </div>
       </div>
 
+      <!-- Grade table -->
       <div class="card">
-        <div class="table-wrap">
+        <div id="gb-table-wrap" class="table-wrap">
           <table class="data-table" id="gradebook-table">
             <thead>
               <tr>
@@ -482,7 +498,7 @@ const TeacherView = {
         </div>
       </div>
 
-      <!-- PH Grade Scale Legend -->
+      <!-- Grade Scale Legend -->
       <div style="margin-top:16px;padding:14px 18px;background:var(--gray-50);border-radius:var(--radius);border:1px solid var(--gray-100);font-size:12px;color:var(--gray-500)">
         <strong style="color:var(--gray-600)">Grade Scale (DepEd Transmutation):</strong>
         1.00 (97-100%) · 1.25 (93-96%) · 1.50 (89-92%) · 1.75 (85-88%) · 2.00 (81-84%) ·
