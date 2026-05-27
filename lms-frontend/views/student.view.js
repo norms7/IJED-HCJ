@@ -535,6 +535,64 @@ const StudentView = {
         </tr>`;
     }).join('');
 
+    /* ── Grade Equivalence Legend helper ──────────────────────────────── */
+    function _buildGradeLegend() {
+      var entries = [
+        { grade:'1.00', range:'97–99%',   label:'Excellent',               passing:true  },
+        { grade:'1.25', range:'94–96%',   label:'Very Good',               passing:true  },
+        { grade:'1.50', range:'91–93%',   label:'Very Good',               passing:true  },
+        { grade:'1.75', range:'88–90%',   label:'Very Good',               passing:true  },
+        { grade:'2.00', range:'85–87%',   label:'Satisfactory',            passing:true  },
+        { grade:'2.25', range:'82–84%',   label:'Satisfactory',            passing:true  },
+        { grade:'2.50', range:'79–81%',   label:'Satisfactory',            passing:true  },
+        { grade:'2.75', range:'76–78%',   label:'Fair',                    passing:true  },
+        { grade:'3.00', range:'75%',          label:'Fair',                    passing:true  },
+        { grade:'5.00', range:'Below 75%',    label:'Failed',                  passing:false },
+        { grade:'INC',  range:'',             label:'Incomplete Requirements', passing:null  },
+        { grade:'DRP',  range:'',             label:'Officially Dropped',      passing:null  },
+        { grade:'E',    range:'',             label:'Exempted',                passing:null  },
+      ];
+      var items = entries.map(function(g) {
+        var bg  = g.passing === true  ? '#e6f4ea'
+                : g.passing === false ? '#fde8ec'
+                :                       '#f0f0f0';
+        var col = g.passing === true  ? '#2e6b3e'
+                : g.passing === false ? '#c0392b'
+                :                       '#555';
+        var rangeSpan = g.range
+          ? '<span style="color:#999;margin-right:4px">' + g.range + '</span>'
+          : '';
+        return (
+          '<div style="display:flex;align-items:center;gap:10px;padding:4px 0">'
+          + '<span style="display:inline-flex;align-items:center;justify-content:center;'
+          + 'min-width:46px;padding:2px 8px;border-radius:6px;background:' + bg + ';color:' + col + ';'
+          + 'font-size:12px;font-weight:700;flex-shrink:0">' + g.grade + '</span>'
+          + '<span style="font-size:12px;color:#666">' + rangeSpan + escHtml(g.label) + '</span>'
+          + '</div>'
+        );
+      }).join('');
+
+      return (
+        '<div class="grade-equiv-legend" style="margin-top:20px;border:1px solid #e5e7eb;border-radius:12px;'
+        + 'background:white;box-shadow:0 1px 4px rgba(0,0,0,.05);overflow:hidden">'
+        + '<div style="padding:12px 20px;border-bottom:1px solid #e5e7eb;background:#fdf6f7;'
+        + 'display:flex;align-items:center;gap:8px">'
+        + '<span style="font-size:16px">🎓</span>'
+        + '<span style="font-size:13px;font-weight:700;color:#6b0f1a">Grading System</span>'
+        + '</div>'
+        + '<div style="padding:16px 20px">'
+        + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px 24px">'
+        + items
+        + '</div>'
+        + '<p style="margin:10px 0 0;font-size:11px;color:#aaa">'
+        + 'Numeric grades are computed from your percentage score. '
+        + 'A grade of <strong>3.00 or better</strong> is considered passing.'
+        + '</p>'
+        + '</div>'
+        + '</div>'
+      );
+    }
+
     return `
       <div class="section-header">
         <div class="section-header-left"><h2>Activities &amp; Quizzes</h2><p id="act-student-count">${apiActivities.length} activity(s)</p></div>
@@ -557,7 +615,10 @@ const StudentView = {
           </thead>
           <tbody id="student-activity-list">${rows}</tbody>
         </table>
-      </div>`;
+      </div>
+
+      <!-- ── Grade Equivalence Legend ────────────────────────────────────── -->
+      ${_buildGradeLegend()}`;
   },
 
   /** Activity answering screen */
