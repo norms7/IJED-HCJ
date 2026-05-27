@@ -103,7 +103,7 @@ const DashboardController = {
       if (id === 'my-subjects') return StudentView.mySubjects();
       if (id === 'modules')     return StudentView.modules(null);
       if (id === 'activities')  return StudentView.activitiesLoading();
-      if (id === 'my-grades')   return StudentView.myGrades(user);
+      if (id === 'my-grades')   return StudentView.myGrades();
     }
     return `<div class="empty-state"><div class="empty-state-icon">🚧</div><div class="empty-state-title">Section Coming Soon</div></div>`;
   },
@@ -256,6 +256,37 @@ const DashboardController = {
         .catch(err => {
           console.error('Student modules error:', err.message);
           Toast.show('Failed to load modules: ' + err.message, 'error');
+        });
+      return;
+    }
+
+    // ── Student My Grades ────────────────────────────────────────────────
+    if (sectionId === 'my-grades' && role === 'student') {
+      area.innerHTML = StudentView.myGrades();
+      Promise.all([
+        api.getStudentActivities(),
+        api.getStudentSubjects(),
+      ])
+        .then(([activities, subjects]) => {
+          // Build subjectId → name map
+          const subjectMap = {};
+          (subjects || []).forEach(s => { subjectMap[s.subject_id] = s.subject_name; });
+
+          const wrap = document.getElementById('my-grades-wrap');
+          if (wrap) {
+            wrap.innerHTML = StudentView.myGradesTable(activities || [], subjectMap);
+            DashboardController._attachSearch();
+          }
+        })
+        .catch(err => {
+          console.error('[MyGrades]', err);
+          const wrap = document.getElementById('my-grades-wrap');
+          if (wrap) wrap.innerHTML = `<div class="empty-state">
+            <div class="empty-state-icon">⚠️</div>
+            <div class="empty-state-title">Failed to load grades</div>
+            <div class="empty-state-sub">${escHtml(err.message)}</div>
+          </div>`;
+          Toast.show('Failed to load grades: ' + err.message, 'error');
         });
       return;
     }

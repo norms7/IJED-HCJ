@@ -684,32 +684,177 @@ const StudentView = {
       </div>`;
   },
 
-  myGrades(user) {
-    const grades = gradeModel.getByStudent(user.id);
-    const avg    = grades.length
-      ? Math.round(grades.reduce((s, g) => s + (g.score / g.maxScore * 100), 0) / grades.length)
-      : 0;
+  // ── My Grades shell (shown while loading) ────────────────────────────────
+  myGrades() {
     return `
       <div class="section-header">
-        <div class="section-header-left"><h2>My Grades</h2><p>Average: <strong style="color:var(--maroon)">${avg}%</strong> · ${grades.length} records</p></div>
+        <div class="section-header-left">
+          <h2>📊 My Grades</h2>
+          <p id="my-grades-count">Loading…</p>
+        </div>
+        <div class="search-box">
+          <span>🔍</span>
+          <input type="text" id="global-search" placeholder="Search activities…" />
+        </div>
       </div>
-      <div class="card"><div class="table-wrap"><table class="data-table">
-        <thead><tr><th>Activity</th><th>Subject</th><th>Score</th><th>%</th><th>Grade</th><th>Remarks</th><th>Date</th></tr></thead>
-        <tbody>${grades.length ? grades.map(g => {
-          const act = activityModel.getById(g.activityId);
-          const sub = subjectModel.getById(g.subjectId);
-          const pct = Math.round(g.score / g.maxScore * 100);
-          return `<tr>
-            <td><strong>${escHtml(act ? act.title : '?')}</strong></td>
-            <td><span class="badge badge-maroon">${escHtml(sub ? sub.name : '?')}</span></td>
-            <td>${g.score}/${g.maxScore}</td>
-            <td>${pct}%</td>
-            <td><span class="grade-pill ${gradeClass(pct)}">${gradeLabel(pct)}</span></td>
-            <td class="text-sm text-muted">${escHtml(g.remarks || '—')}</td>
-            <td class="text-sm text-muted">${fmtDate(g.gradedAt)}</td>
-          </tr>`;
-        }).join('') : '<tr><td colspan="7" class="text-center text-muted" style="padding:40px">No grades recorded yet</td></tr>'}
-        </tbody>
-      </table></div></div>`;
+      <div id="my-grades-wrap">
+        <div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Loading grades…</div></div>
+      </div>`;
+  },
+
+  // ── My Grades populated table ─────────────────────────────────────────────
+  myGradesTable(activities, subjectMap) {
+    // Filter to only submitted/graded ones
+    const graded = activities.filter(a => a.submission !== null && a.submission !== undefined);
+
+    const countEl = document.getElementById('my-grades-count');
+
+    if (!graded.length) {
+      if (countEl) countEl.textContent = 'No graded activities yet';
+      return `
+        <div class="empty-state" style="margin-top:20px">
+          <div class="empty-state-icon">📭</div>
+          <div class="empty-state-title">No Grades Yet</div>
+          <div class="empty-state-sub">Your submitted activities will appear here once your teacher grades them.</div>
+        </div>`;
+    }
+
+    // Compute summary stats
+    let totalEarned = 0, totalPossible = 0, gradedCount = 0;
+    graded.forEach(a => {
+      const sub = a.submission;
+      if (sub && sub.score != null && sub.max_score != null) {
+        totalEarned   += sub.score;
+        totalPossible += sub.max_score;
+        gradedCount++;
+      }
+    });
+    const overallPct  = totalPossible > 0 ? Math.round(totalEarned / totalPossible * 100) : null;
+    const overallGrade = overallPct !== null ? StudentView._toPhGrade(overallPct) : '—';
+    const gradeColor  = overallPct === null ? 'var(--gray-400)'
+      : overallPct >= 75 ? '#16a34a' : overallPct >= 60 ? '#d97706' : '#dc2626';
+
+    if (countEl) countEl.textContent = `${graded.length} submission(s) · ${gradedCount} graded`;
+
+    const TYPE_LABELS = {
+      quiz: 'Quiz', long_quiz: 'Long Quiz', task_performance: 'Task Performance',
+      exam: 'Exam', lab_exercise: 'Lab Exercise', assignment: 'Assignment', other: 'Other',
+    };
+
+    const rows = graded.map(a => {
+      const sub        = a.submission;
+      const subjectName = subjectMap[a.subject_id] || '—';
+      const typeLabel  = TYPE_LABELS[a.activity_type] || a.activity_type || '—';
+      const term       = a.term ? `${a.term} Term` : '—';
+
+      // Score / pct
+      const score    = sub.score;
+      const maxScore = sub.max_score ?? a.max_score;
+      const pct      = score != null && maxScore ? Math.round(score / maxScore * 100) : null;
+      const pctColor = pct === null ? 'var(--gray-400)' : pct >= 75 ? '#16a34a' : pct >= 60 ? '#d97706' : '#dc2626';
+      const pctBadge = pct !== null
+        ? `<span class="badge ${pct >= 75 ? 'badge-green' : pct >= 60 ? 'badge-gold' : 'badge-danger'}" style="font-size:11px">${pct}%</span>`
+        : `<span class="badge badge-gray" style="font-size:11px">Pending</span>`;
+
+      // PH grade
+      const phGrade = pct !== null ? StudentView._toPhGrade(pct) : '—';
+      const phColor = phGrade === '—' ? 'var(--gray-400)'
+        : parseFloat(phGrade) <= 1.75 ? '#16a34a'
+        : parseFloat(phGrade) <= 2.75 ? '#d97706'
+        : '#dc2626';
+
+      // Remarks
+      const remarks = sub.remarks || '—';
+
+      // Date
+      const dateStr = sub.submitted_at
+        ? new Date(sub.submitted_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
+        : '—';
+
+      // Graded status
+      const gradedBadge = sub.is_graded || score != null
+        ? `<span class="badge badge-green" style="font-size:10px">✅ Graded</span>`
+        : `<span class="badge badge-gold" style="font-size:10px">⏳ Pending</span>`;
+
+      return `<tr data-searchable>
+        <td>
+          <div style="font-weight:600;font-size:13px;color:var(--maroon)">${escHtml(a.title)}</div>
+          <div style="font-size:11px;color:var(--gray-400);margin-top:2px">${escHtml(typeLabel)} · ${escHtml(term)}</div>
+        </td>
+        <td><span class="badge badge-maroon" style="font-size:11px">${escHtml(subjectName)}</span></td>
+        <td style="text-align:center;font-weight:600">
+          ${score !== null && score !== undefined ? `${score}<span style="color:var(--gray-400)">/${maxScore ?? '?'}</span>` : `<span style="color:var(--gray-400)">—/${maxScore ?? '?'}</span>`}
+        </td>
+        <td style="text-align:center">${pctBadge}</td>
+        <td style="text-align:center;font-weight:700;color:${phColor};font-size:14px">${escHtml(String(phGrade))}</td>
+        <td>${gradedBadge}</td>
+        <td style="font-size:12px;color:var(--gray-500)">${escHtml(remarks)}</td>
+        <td style="font-size:12px;color:var(--gray-500)">${escHtml(dateStr)}</td>
+      </tr>`;
+    }).join('');
+
+    return `
+      <!-- Summary strip -->
+      <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+        <div class="stat-card" style="flex:1;min-width:120px;padding:12px 16px">
+          <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px">Submissions</div>
+          <div style="font-size:22px;font-weight:700;color:var(--maroon)">${graded.length}</div>
+        </div>
+        <div class="stat-card" style="flex:1;min-width:120px;padding:12px 16px">
+          <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px">Graded</div>
+          <div style="font-size:22px;font-weight:700;color:var(--maroon)">${gradedCount}</div>
+        </div>
+        <div class="stat-card" style="flex:1;min-width:120px;padding:12px 16px">
+          <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px">Overall Score</div>
+          <div style="font-size:22px;font-weight:700;color:${gradeColor}">
+            ${overallPct !== null ? overallPct + '%' : '—'}
+          </div>
+        </div>
+        <div class="stat-card" style="flex:1;min-width:120px;padding:12px 16px">
+          <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px">Overall Grade</div>
+          <div style="font-size:22px;font-weight:700;color:${gradeColor}">${escHtml(String(overallGrade))}</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Activity</th>
+                <th>Subject</th>
+                <th style="text-align:center">Score</th>
+                <th style="text-align:center">Percentage</th>
+                <th style="text-align:center">Final Grade</th>
+                <th>Status</th>
+                <th>Remarks</th>
+                <th>Submitted</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Grade scale legend -->
+      <div style="margin-top:14px;padding:12px 16px;background:var(--gray-50);border-radius:var(--radius);border:1px solid var(--gray-100);font-size:11px;color:var(--gray-500)">
+        <strong style="color:var(--gray-600)">Grade Scale (DepEd):</strong>
+        1.00 (97-100%) · 1.25 (93-96%) · 1.50 (89-92%) · 1.75 (85-88%) · 2.00 (81-84%) ·
+        2.25 (77-80%) · 2.50 (73-76%) · 2.75 (69-72%) · 3.00 (65-68%) · 5.00 (&lt;65%)
+      </div>`;
+  },
+
+  // ── DepEd grade transmutation (reused from teacher side) ─────────────────
+  _toPhGrade(pct) {
+    if (pct >= 97) return '1.00';
+    if (pct >= 93) return '1.25';
+    if (pct >= 89) return '1.50';
+    if (pct >= 85) return '1.75';
+    if (pct >= 81) return '2.00';
+    if (pct >= 77) return '2.25';
+    if (pct >= 73) return '2.50';
+    if (pct >= 69) return '2.75';
+    if (pct >= 65) return '3.00';
+    return '5.00';
   },
 };
