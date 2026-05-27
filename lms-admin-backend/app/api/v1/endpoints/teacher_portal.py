@@ -115,7 +115,10 @@ async def get_class_students(
             TeacherClassAssignment.class_id == class_id,
         )
     )
-    assignment = result.scalar_one_or_none()
+    # Use first() — a teacher may have multiple assignment rows for the same
+    # class (one per subject/section), so scalar_one_or_none() raises
+    # MultipleResultsFound when that happens.
+    assignment = result.scalars().first()
     if not assignment:
         raise HTTPException(status_code=403, detail="You are not assigned to this class")
 
