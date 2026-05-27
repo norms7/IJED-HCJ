@@ -59,6 +59,20 @@ const StudentView = {
     /* ── Recent grades list ────────────────────────────────────────────── */
     const gradesHTML = recentGrades.length
       ? recentGrades.slice(0, 6).map(sub => {
+          // If not yet graded by teacher, show as pending
+          if (!sub.is_graded || sub.score === null) {
+            return `
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--gray-100)">
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(sub._activity || '?')}</div>
+                  <div style="font-size:12px;color:var(--gray-400)">${escHtml(sub._subject || '?')}</div>
+                </div>
+                <div style="text-align:right;flex-shrink:0">
+                  <span class="badge badge-gray" style="font-size:11px">Pending</span>
+                  <div style="font-size:11px;color:var(--gray-400);margin-top:2px">Awaiting grade</div>
+                </div>
+              </div>`;
+          }
           const pct  = sub.max_score > 0 ? Math.round((sub.score ?? 0) / sub.max_score * 100) : 0;
           const gc   = pct >= 90 ? 'badge-green' : pct >= 75 ? 'badge-gold' : 'badge-red';
           const gl   = pct >= 90 ? 'Excellent'  : pct >= 75 ? 'Passing'    : 'Needs Work';
@@ -74,7 +88,7 @@ const StudentView = {
               </div>
             </div>`;
         }).join('')
-      : `<p class="text-muted text-sm" style="padding:12px 0">No grades recorded yet</p>`;
+      : `<p class="text-muted text-sm" style="padding:12px 0">No activity submissions yet</p>`;
 
     return `
       <div class="welcome-banner">

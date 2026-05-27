@@ -169,26 +169,28 @@ const DashboardController = {
         api.getStudentActivities(),
       ])
         .then(([stats, subjects, activities]) => {
-          // Build recent grades: one most-recent graded activity per enrolled subject
-          const gradedActivities = activities
-            .filter(a => a.submission && a.submission.is_graded && a.submission.score !== null)
+          // Build recent grades: one most-recent submitted activity per enrolled subject.
+          // Shows graded score if available, or "Pending" if submitted but not yet graded.
+          const submittedActivities = activities
+            .filter(a => a.submission != null)
             .sort((a, b) => {
               const da = a.submission.submitted_at ? new Date(a.submission.submitted_at) : 0;
               const db_ = b.submission.submitted_at ? new Date(b.submission.submitted_at) : 0;
               return db_ - da;
             });
-          // Pick the most recent graded activity for each enrolled subject
+          // Pick the most recent submission for each enrolled subject
           const seenSubjects = new Set();
           const recentGrades = [];
-          for (const a of gradedActivities) {
+          for (const a of submittedActivities) {
             if (!seenSubjects.has(a.subject_id)) {
               seenSubjects.add(a.subject_id);
               const subjectName = a.subject_id
                 ? (subjects.find(s => s.subject_id === a.subject_id) || {}).subject_name || '?'
                 : '?';
               recentGrades.push({
-                score:      a.submission.score,
+                score:      a.submission.is_graded ? a.submission.score : null,
                 max_score:  a.submission.max_score,
+                is_graded:  a.submission.is_graded,
                 _activity:  a.title,
                 _subject:   subjectName,
               });
