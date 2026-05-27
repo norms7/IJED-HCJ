@@ -113,14 +113,16 @@ async def get_section_students(
         Student, AttendanceSession, AttendanceRecord
     )
 
-    # Auth check
+    # Auth check — use first() because a teacher may have multiple subject
+    # assignments to the same class, which would cause scalar_one_or_none() to
+    # raise MultipleResultsFound.
     result = await db.execute(
         select(TeacherClassAssignment).where(
             TeacherClassAssignment.teacher_id == teacher.id,
             TeacherClassAssignment.class_id == class_id,
         )
     )
-    if not result.scalar_one_or_none():
+    if not result.scalars().first():
         raise HTTPException(status_code=403, detail="Not assigned to this class")
 
     # Get sections for this class
@@ -287,14 +289,14 @@ async def create_session(
         TeacherClassAssignment, AttendanceSession, AttendanceRecord
     )
 
-    # Auth check
+    # Auth check — use first() to handle teachers with multiple subject assignments per class
     result = await db.execute(
         select(TeacherClassAssignment).where(
             TeacherClassAssignment.teacher_id == teacher.id,
             TeacherClassAssignment.class_id   == body.class_id,
         )
     )
-    if not result.scalar_one_or_none():
+    if not result.scalars().first():
         raise HTTPException(status_code=403, detail="Not assigned to this class")
 
     # Duplicate check
