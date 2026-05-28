@@ -15,7 +15,8 @@ const CalendarController = {
     const now = new Date();
     if (this._viewYear  === null) this._viewYear  = now.getFullYear();
     if (this._viewMonth === null) this._viewMonth = now.getMonth();
-    this._buildActivityEvents(DashboardController.currentUser).then(() => {
+    // Return the promise so callers (dashboard controller) can .finally() on it
+    return this._buildActivityEvents(DashboardController.currentUser).then(() => {
       this._render();
     });
   },

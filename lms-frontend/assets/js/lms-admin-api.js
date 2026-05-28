@@ -38,18 +38,25 @@ class LMSAdminAPI {
     const opts = { method, headers: this._headers() };
     if (body) opts.body = JSON.stringify(body);
 
-    const res = await fetch(`${this.baseURL}${path}`, opts);
+    // Auto-show top progress bar for every API call
+    if (typeof Loader !== 'undefined') Loader.start();
 
-    if (res.status === 401) {
-      this._clearToken();
-      throw new Error("Session expired. Please log in again.");
+    try {
+      const res = await fetch(`${this.baseURL}${path}`, opts);
+
+      if (res.status === 401) {
+        this._clearToken();
+        throw new Error("Session expired. Please log in again.");
+      }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || `HTTP ${res.status}`);
+      }
+      if (res.status === 204) return null;
+      return res.json();
+    } finally {
+      if (typeof Loader !== 'undefined') Loader.done();
     }
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: res.statusText }));
-      throw new Error(err.detail || `HTTP ${res.status}`);
-    }
-    if (res.status === 204) return null;
-    return res.json();
   }
 
   _saveToken(token) {

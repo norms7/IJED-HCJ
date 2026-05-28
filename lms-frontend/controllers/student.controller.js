@@ -52,7 +52,7 @@ const StudentController = {
     const area = document.getElementById('content-area');
     area.innerHTML = StudentView.activitiesLoading();
 
-    api.getStudentActivities()
+    return api.getStudentActivities()
       .then(async activities => {
         // For activities that are submitted but have no score data in the list
         // response (backend returns submission: null), fetch result in parallel
@@ -227,7 +227,7 @@ const StudentController = {
     const area = document.getElementById('content-area');
     area.innerHTML = StudentView.attendanceLoading();
 
-    api.getMyAttendance()
+    return api.getMyAttendance()
       .then(data => {
         area.innerHTML = StudentView.attendance(data);
       })
