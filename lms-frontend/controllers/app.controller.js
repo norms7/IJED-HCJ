@@ -37,6 +37,7 @@ const App = {
   /** Bootstrap the app: dark mode, clock, session restore */
   init() {
     DarkMode.init();
+    Loader.init();
     document.getElementById('sidebar-overlay').addEventListener('click', () => {
       document.getElementById('sidebar').classList.remove('mobile-open');
       document.getElementById('sidebar-overlay').classList.remove('show');
