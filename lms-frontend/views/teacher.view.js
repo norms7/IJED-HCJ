@@ -95,7 +95,7 @@ const TeacherView = {
       return `
         <div class="section-header">
           <div class="section-header-left"><h2>Modules</h2><p id="module-count">Loading…</p></div>
-          <div class="flex gap-2"><div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search modules…" /></div><button class="btn btn-primary" onclick="TeacherController.openAddModule()">➕ Add Module</button></div>
+          <div class="section-header-right"><div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search modules…" /></div><button class="btn btn-primary" onclick="TeacherController.openAddModule()">➕ Add Module</button></div>
         </div>
         <div class="module-grid" id="teacher-module-grid"><div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Loading modules…</div></div></div>`;
     }
@@ -135,7 +135,7 @@ const TeacherView = {
     return `
       <div class="section-header">
         <div class="section-header-left"><h2>Modules</h2><p id="module-count">${apiModules.length} module(s) uploaded</p></div>
-        <div class="flex gap-2"><div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search modules…" /></div><button class="btn btn-primary" onclick="TeacherController.openAddModule()">➕ Add Module</button></div>
+        <div class="section-header-right"><div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search modules…" /></div><button class="btn btn-primary" onclick="TeacherController.openAddModule()">➕ Add Module</button></div>
       </div>
       <div class="module-grid" id="teacher-module-grid">${grid}</div>`;
   },
@@ -163,7 +163,7 @@ const TeacherView = {
       return `
         <div class="section-header">
           <div class="section-header-left"><h2>Activities & Quizzes</h2><p id="act-count">Loading…</p></div>
-          <div class="flex gap-2">
+          <div class="section-header-right">
             <div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search activities…" /></div>
             <button class="btn btn-primary" onclick="TeacherController.openAddActivity()">➕ Create Activity</button>
           </div>
@@ -237,7 +237,7 @@ const TeacherView = {
           <h2>Activities & Quizzes</h2>
           <p id="act-count">${apiActivities.length} activity(s)</p>
         </div>
-        <div class="flex gap-2">
+        <div class="section-header-right">
           <div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search activities…" /></div>
           <button class="btn btn-primary" onclick="TeacherController.openAddActivity()">➕ Create Activity</button>
         </div>
@@ -253,7 +253,7 @@ const TeacherView = {
           <h2>📊 Digital Gradebook</h2>
           <p id="grade-count">Loading sections…</p>
         </div>
-        <div class="flex gap-2">
+        <div class="section-header-right">
           <div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search sections…" /></div>
         </div>
       </div>
@@ -435,7 +435,7 @@ const TeacherView = {
             </div>
           </div>
         </div>
-        <div class="flex gap-2" style="align-items:center">
+        <div class="section-header-right">
           <div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search students…" /></div>
           <button class="btn btn-outline btn-sm" onclick="GradebookController.exportSection()">📥 Export Excel</button>
         </div>
