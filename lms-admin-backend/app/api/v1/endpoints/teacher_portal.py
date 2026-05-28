@@ -391,31 +391,66 @@ async def get_class_module_reads(
             TeacherClassAssignment.class_id == class_id,
         )
     )
-    if not result.scalar_one_or_none():
+    if not result.scalars().first():
         raise HTTPException(status_code=403, detail="You are not assigned to this class")
 
-    # Get all module ids for this class
-    result = await db.execute(
-        select(Module.id).where(Module.class_id == class_id)
+    # ── Get all module ids for this class ────────────────────────────────
+    # BUG FIX: modules on live are created with subject_id but class_id may be NULL.
+    # We must collect modules by BOTH class_id AND subject_id (via teacher assignments).
+    # Step 1: get subject_ids assigned to this teacher for this class
+    tca_subjects_result = await db.execute(
+        select(TeacherClassAssignment.subject_id).where(
+            TeacherClassAssignment.teacher_id == teacher.id,
+            TeacherClassAssignment.class_id == class_id,
+        )
     )
-    module_ids = [row[0] for row in result.all()]
+    subject_ids_for_class = [row[0] for row in tca_subjects_result.all()]
+
+    # Step 2: fetch modules that match EITHER class_id OR subject_id (union)
+    from sqlalchemy import or_
+    module_conditions = [Module.class_id == class_id]
+    if subject_ids_for_class:
+        module_conditions.append(Module.subject_id.in_(subject_ids_for_class))
+
+    result = await db.execute(
+        select(Module.id).where(or_(*module_conditions), Module.is_published == True)
+    )
+    module_ids = list({row[0] for row in result.all()})  # dedupe with set
     if not module_ids:
         return {"module_reads": {}, "total_modules": 0}
 
-    # Get all students in this class
+    # ── Get all students in this class ───────────────────────────────────
+    # BUG FIX: on live, students are enrolled via StudentSubjectEnrollment
+    # (direct subject enrollments), NOT via section_assignments.
+    # We must collect student_ids from BOTH sources.
+    student_id_set: set[int] = set()
+
+    # Source 1: section_assignments (legacy / local)
     result = await db.execute(
         select(Section).where(Section.class_id == class_id)
     )
     sections = result.scalars().all()
     section_ids = [s.id for s in sections]
+    if section_ids:
+        result = await db.execute(
+            select(Student.id)
+            .join(Student.section_assignments)
+            .where(StudentSectionAssignment.section_id.in_(section_ids))
+            .distinct()
+        )
+        student_id_set.update(row[0] for row in result.all())
 
-    result = await db.execute(
-        select(Student.id)
-        .join(Student.section_assignments)
-        .where(StudentSectionAssignment.section_id.in_(section_ids))
-        .distinct()
-    )
-    student_ids = [row[0] for row in result.all()]
+    # Source 2: direct subject enrollments (live / Railway)
+    if subject_ids_for_class:
+        from app.models.models import StudentSubjectEnrollment
+        result = await db.execute(
+            select(StudentSubjectEnrollment.student_id)
+            .where(StudentSubjectEnrollment.subject_id.in_(subject_ids_for_class))
+            .distinct()
+        )
+        student_id_set.update(row[0] for row in result.all())
+
+    student_ids = list(student_id_set)
 
     if not student_ids:
         return {"module_reads": {}, "total_modules": len(module_ids)}
