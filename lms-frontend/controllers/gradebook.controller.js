@@ -170,10 +170,11 @@ const GradebookController = {
       // Use cache if already fetched
       let cached = this._subjectCache[cacheKey];
       if (!cached) {
-        const [activities, modules, attendance] = await Promise.all([
+        const [activities, modules, attendance, moduleReadsData] = await Promise.all([
           api.getTeacherActivities({ subject_id: subjectId }).catch(() => []),
           api.getMyModules(subjectId).catch(() => []),
           api.getAttendanceSectionStudents(this._currentClassId, { subjectId, term }).catch(() => ({ students: [], total_meetings: 0 })),
+          api.getClassModuleReads(this._currentClassId).catch(() => ({ module_reads: {}, total_modules: 0 })),
         ]);
 
         // Fetch submissions per activity
@@ -185,20 +186,20 @@ const GradebookController = {
           )
         );
 
-        cached = { activities: activitiesWithSubs, modules, attendance };
+        cached = { activities: activitiesWithSubs, modules, attendance, moduleReads: moduleReadsData.module_reads || {} };
         this._subjectCache[cacheKey] = cached;
       }
 
-      const { activities, modules, attendance } = cached;
+      const { activities, modules, attendance, moduleReads } = cached;
 
-      // Annotate students with attendance for this subject+term
+      // Annotate students with attendance and module reads for this subject+term
       const attMap   = {};
       const attTotal = attendance.total_meetings || 0;
       (attendance.students || []).forEach(s => { attMap[s.id] = s; });
 
       const studentsAnnotated = this._allStudents.map(stu => ({
         ...stu,
-        _modulesRead: 0,       // module-read per student API TBD
+        _modulesRead: moduleReads[stu.id] ?? 0,
         _attPresent:  attMap[stu.id]?.present ?? 0,
         _attTotal:    attTotal,
       }));
