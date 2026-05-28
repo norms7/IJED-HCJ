@@ -349,16 +349,14 @@ const DashboardController = {
     if (sectionId === 'activities' && role === 'student') {
       Loader.start();
       // StudentController.loadActivities handles its own skeleton/render
-      StudentController.loadActivities();
-      Loader.done();
+      StudentController.loadActivities().finally(() => Loader.done());
       return;
     }
 
     // ── Student Attendance ───────────────────────────────────────────────
     if (sectionId === 'attendance' && role === 'student') {
       Loader.start();
-      StudentController.loadAttendance();
-      Loader.done();
+      StudentController.loadAttendance().finally(() => Loader.done());
       return;
     }
 
@@ -390,8 +388,7 @@ const DashboardController = {
       Loader.start();
       area.innerHTML = TeacherView.grades(user);
       Loader.init();
-      GradebookController.loadSections();
-      Loader.done();
+      GradebookController.loadSections().finally(() => Loader.done());
       return;
     }
 
@@ -400,8 +397,7 @@ const DashboardController = {
       Loader.start();
       area.innerHTML = TeacherView.attendance(user);
       Loader.init();
-      AttendanceController.loadSections();
-      Loader.done();
+      AttendanceController.loadSections().finally(() => Loader.done());
       return;
     }
 

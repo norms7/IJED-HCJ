@@ -227,7 +227,9 @@ body.dark-mode #ijed-section-overlay {
 }
 
 /* ── 7. Content-area relative positioning ───────────────────
-   Needed for the overlay to sit over the content.
+   Needed for the #ijed-section-overlay (position:absolute)
+   to anchor inside the content area.
+   NOTE: layout.css also sets this; kept here as a safety net.
    ─────────────────────────────────────────────────────────── */
 .content-area {
   position: relative;

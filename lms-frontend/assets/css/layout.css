@@ -655,6 +655,7 @@ body.dark-mode .profile-dropdown-logout:hover { background: #3a1a24; }
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
+  position: relative; /* Required: anchors the #ijed-section-overlay (position:absolute) */
 }
 .content-area::-webkit-scrollbar       { width: 6px; }
 .content-area::-webkit-scrollbar-track { background: transparent; }

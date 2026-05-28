@@ -37,7 +37,6 @@ const App = {
   /** Bootstrap the app: dark mode, clock, session restore */
   init() {
     DarkMode.init();
-    Loader.init();
     document.getElementById('sidebar-overlay').addEventListener('click', () => {
       document.getElementById('sidebar').classList.remove('mobile-open');
       document.getElementById('sidebar-overlay').classList.remove('show');
@@ -75,6 +74,7 @@ const App = {
     if (session) {
       if (session._token) api._saveToken(session._token);
       this.showPage('app');
+      Loader.init();  // Init after page is visible so content-area has dimensions
       this.populateProfileDropdown(session);
       DashboardController.load(session);
       NotificationController.init();
