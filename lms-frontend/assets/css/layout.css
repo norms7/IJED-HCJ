@@ -142,8 +142,13 @@
 .hero-btn-secondary {
   padding: 12px 24px;
   font-size: 15px;
-  color: #fff;
-  border-color: rgba(255,255,255,.4);
+  color: #fff !important;
+  border: 1.5px solid rgba(255,255,255,.55) !important;
+  background: transparent !important;
+}
+.hero-btn-secondary:hover {
+  background: rgba(255,255,255,.12) !important;
+  border-color: rgba(255,255,255,.85) !important;
 }
 .hero-wave     { position: absolute; bottom: 0; left: 0; right: 0; height: 60px; overflow: hidden; }
 .hero-wave svg { display: block; }
