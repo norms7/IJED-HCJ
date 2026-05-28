@@ -41,6 +41,26 @@ const App = {
       document.getElementById('sidebar').classList.remove('mobile-open');
       document.getElementById('sidebar-overlay').classList.remove('show');
     });
+    // Close mobile sidebar when a nav-item is tapped
+    document.getElementById('sidebar-nav').addEventListener('click', (e) => {
+      if (window.innerWidth <= 768 && e.target.closest('.nav-item')) {
+        document.getElementById('sidebar').classList.remove('mobile-open');
+        document.getElementById('sidebar-overlay').classList.remove('show');
+      }
+    });
+    // Close mobile sidebar on Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        document.getElementById('sidebar').classList.remove('mobile-open');
+        document.getElementById('sidebar-overlay').classList.remove('show');
+      }
+    });
+    // Prevent body scroll when mobile sidebar is open
+    const _sb = document.getElementById('sidebar');
+    const observer = new MutationObserver(() => {
+      document.body.style.overflow = _sb.classList.contains('mobile-open') ? 'hidden' : '';
+    });
+    observer.observe(_sb, { attributes: true, attributeFilter: ['class'] });
     // Close profile dropdown when clicking outside
     document.addEventListener('click', (e) => {
       const wrapper = document.getElementById('topbar-avatar-wrapper');

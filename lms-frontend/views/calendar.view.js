@@ -71,8 +71,14 @@ const CalendarView = {
         </div>
 
         <div class="cal-right">
-          <div class="card" style="min-height:520px">
-            <div id="cal-day-panel" style="padding:20px;overflow-y:auto;max-height:75vh"></div>
+          <div class="card" style="min-height:280px">
+            <div id="cal-day-panel" style="padding:20px;overflow-y:auto;max-height:75vh">
+              <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;color:var(--gray-400);text-align:center;gap:10px">
+                <div style="font-size:36px;opacity:.4">&#128197;</div>
+                <div style="font-size:14px;font-weight:600;color:var(--gray-600)">Select a day</div>
+                <div style="font-size:12px">Tap any date on the calendar to see events</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>`;

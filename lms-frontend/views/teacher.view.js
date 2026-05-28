@@ -826,12 +826,12 @@ const TeacherView = {
           <table style="width:100%;border-collapse:collapse">
             <thead style="position:sticky;top:0;z-index:1">
               <tr style="background:var(--gray-50)">
-                <th style="padding:8px 10px;text-align:left;color:var(--maroon);font-size:11px;border-bottom:2px solid var(--rose-mid)">Student Name</th>
-                <th style="padding:8px 10px;text-align:left;color:var(--maroon);font-size:11px;border-bottom:2px solid var(--rose-mid)">LRN / ID</th>
-                <th style="padding:8px 10px;text-align:center;color:var(--green,#16a34a);font-size:11px;border-bottom:2px solid var(--rose-mid)">Present</th>
-                <th style="padding:8px 10px;text-align:center;color:#dc2626;font-size:11px;border-bottom:2px solid var(--rose-mid)">Absent</th>
-                <th style="padding:8px 10px;text-align:center;color:#d97706;font-size:11px;border-bottom:2px solid var(--rose-mid)">Late</th>
-                <th style="padding:8px 10px;text-align:center;color:var(--gray-500);font-size:11px;border-bottom:2px solid var(--rose-mid)">Excused</th>
+                <th style="padding:8px 10px;text-align:left;color:var(--maroon);font-size:11px;border-bottom:2px solid var(--rose-mid);white-space:nowrap">Student Name</th>
+                <th style="padding:8px 10px;text-align:left;color:var(--maroon);font-size:11px;border-bottom:2px solid var(--rose-mid);white-space:nowrap">LRN / ID</th>
+                <th style="padding:8px 10px;text-align:center;color:var(--green,#16a34a);font-size:11px;border-bottom:2px solid var(--rose-mid);white-space:nowrap">Present</th>
+                <th style="padding:8px 10px;text-align:center;color:#dc2626;font-size:11px;border-bottom:2px solid var(--rose-mid);white-space:nowrap">Absent</th>
+                <th style="padding:8px 10px;text-align:center;color:#d97706;font-size:11px;border-bottom:2px solid var(--rose-mid);white-space:nowrap">Late</th>
+                <th style="padding:8px 10px;text-align:center;color:var(--gray-500);font-size:11px;border-bottom:2px solid var(--rose-mid);white-space:nowrap">Excused</th>
               </tr>
             </thead>
             <tbody>${studentRows}</tbody>
