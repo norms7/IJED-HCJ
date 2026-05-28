@@ -1145,6 +1145,19 @@ body.dark-mode .acc-item-label { color: #f0d0d5; }
 /* Exceptions: badges, buttons, nav labels stay nowrap */
 .badge, .btn, .nav-item, .tab-btn, .um-tab { word-break: normal; white-space: nowrap; }
 
+/* Fix: table cells must NOT inherit break-word or text stacks vertically */
+th, td {
+  word-break: normal;
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
+/* Allow first-name/long-text cells to wrap naturally but not break mid-word */
+td:first-child, th:first-child {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
 /* Heading / title wrapping everywhere */
 h1, h2, h3, h4, h5,
 .stat-value,

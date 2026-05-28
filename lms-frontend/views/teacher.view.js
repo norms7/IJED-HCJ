@@ -482,15 +482,15 @@ const TeacherView = {
           <table class="data-table" id="gradebook-table" style="min-width:640px">
             <thead>
               <tr>
-                <th style="white-space:nowrap">Student Name</th>
-                <th style="white-space:nowrap">LRN / Stud. No.</th>
-                <th style="text-align:center;white-space:nowrap">Acts<br><span style="font-weight:400;font-size:10px">(sub/tot)</span></th>
-                <th style="text-align:center;white-space:nowrap">Act%<br><span style="font-weight:400;font-size:10px">(60%)</span></th>
-                <th style="text-align:center;white-space:nowrap">Mods<br><span style="font-weight:400;font-size:10px">(read/tot)</span></th>
-                <th style="text-align:center;white-space:nowrap">Att.<br><span style="font-weight:400;font-size:10px">(pres/tot)</span></th>
-                <th style="text-align:center">Overall %</th>
-                <th style="text-align:center">Final Grade</th>
-                <th>Breakdown</th>
+                <th style="white-space:nowrap">STUDENT NAME</th>
+                <th style="white-space:nowrap">LRN / STUD. NO.</th>
+                <th style="text-align:center;white-space:nowrap">ACTS <span style="font-weight:400;font-size:10px;opacity:.75">(SUB/TOT)</span></th>
+                <th style="text-align:center;white-space:nowrap">ACT% <span style="font-weight:400;font-size:10px;opacity:.75">(60%)</span></th>
+                <th style="text-align:center;white-space:nowrap">MODS <span style="font-weight:400;font-size:10px;opacity:.75">(READ/TOT)</span></th>
+                <th style="text-align:center;white-space:nowrap">ATT. <span style="font-weight:400;font-size:10px;opacity:.75">(PRES/TOT)</span></th>
+                <th style="text-align:center;white-space:nowrap">OVERALL %</th>
+                <th style="text-align:center;white-space:nowrap">FINAL GRADE</th>
+                <th style="white-space:nowrap">BREAKDOWN</th>
               </tr>
             </thead>
             <tbody>${rows}</tbody>
