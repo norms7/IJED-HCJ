@@ -91,7 +91,7 @@ const StudentView = {
 
     return `
       <div class="welcome-banner">
-        <div>
+        <div class="welcome-text">
           <div class="welcome-title">Hi, ${firstName}! 🎓</div>
           <div class="welcome-sub">Keep learning — every step forward counts!</div>
         </div>
@@ -114,7 +114,7 @@ const StudentView = {
           <div style="display:flex;align-items:center;gap:12px;width:100%">
             <div class="stat-icon" style="background:#e6f4ea;flex-shrink:0">📄</div>
             <div style="flex:1">
-              <div class="stat-value" style="font-size:22px">${modulesVal}</div>
+              <div class="stat-value">${modulesVal}</div>
               <div class="stat-label">Modules Read</div>
             </div>
           </div>
@@ -128,7 +128,7 @@ const StudentView = {
           <div style="display:flex;align-items:center;gap:12px;width:100%">
             <div class="stat-icon" style="background:#fff0e6;flex-shrink:0">📋</div>
             <div style="flex:1">
-              <div class="stat-value" style="font-size:22px">${activitiesVal}</div>
+              <div class="stat-value">${activitiesVal}</div>
               <div class="stat-label">Activities Done</div>
             </div>
           </div>
@@ -690,7 +690,7 @@ const StudentView = {
         </div>
         <div style="padding:24px;background:white;border:1px solid var(--gray-200);border-radius:12px;margin-bottom:20px;text-align:center">
           <div style="font-size:36px;margin-bottom:8px">${result.is_graded || result.score != null ? '🏆' : '⏳'}</div>
-          <div style="font-size:20px;font-weight:700;color:#1a1a2e;margin-bottom:4px">${escHtml(activity.title)}</div>
+          <div style="font-size:clamp(15px,4vw,20px);font-weight:700;color:#1a1a2e;margin-bottom:4px;word-break:break-word">${escHtml(activity.title)}</div>
           ${result.is_graded || result.score != null ? `
             <div style="font-size:32px;font-weight:800;color:var(--maroon);margin:10px 0">${result.score} <span style="font-size:18px;color:#888">/ ${result.max_score} pts</span></div>
             <div style="font-size:15px;color:#555">${pct}% · Grade: <strong>${result.grade || '—'}</strong></div>
@@ -819,23 +819,23 @@ const StudentView = {
     return `
       <!-- Summary strip -->
       <div class="grades-stats-row">
-        <div class="stat-card" style="flex:1;min-width:120px;padding:12px 16px">
+        <div class="stat-card" style="flex:1;min-width:0;padding:clamp(10px,2vw,16px)">
           <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px">Submissions</div>
-          <div style="font-size:22px;font-weight:700;color:var(--maroon)">${graded.length}</div>
+          <div style="font-size:clamp(16px,4vw,22px);font-weight:700;color:var(--maroon)">${graded.length}</div>
         </div>
-        <div class="stat-card" style="flex:1;min-width:120px;padding:12px 16px">
+        <div class="stat-card" style="flex:1;min-width:0;padding:clamp(10px,2vw,16px)">
           <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px">Graded</div>
-          <div style="font-size:22px;font-weight:700;color:var(--maroon)">${gradedCount}</div>
+          <div style="font-size:clamp(16px,4vw,22px);font-weight:700;color:var(--maroon)">${gradedCount}</div>
         </div>
-        <div class="stat-card" style="flex:1;min-width:120px;padding:12px 16px">
+        <div class="stat-card" style="flex:1;min-width:0;padding:clamp(10px,2vw,16px)">
           <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px">Overall Score</div>
-          <div style="font-size:22px;font-weight:700;color:${gradeColor}">
+          <div style="font-size:clamp(16px,4vw,22px);font-weight:700;color:${gradeColor}">
             ${overallPct !== null ? overallPct + '%' : '—'}
           </div>
         </div>
-        <div class="stat-card" style="flex:1;min-width:120px;padding:12px 16px">
+        <div class="stat-card" style="flex:1;min-width:0;padding:clamp(10px,2vw,16px)">
           <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px">Overall Grade</div>
-          <div style="font-size:22px;font-weight:700;color:${gradeColor}">${escHtml(String(overallGrade))}</div>
+          <div style="font-size:clamp(16px,4vw,22px);font-weight:700;color:${gradeColor}">${escHtml(String(overallGrade))}</div>
         </div>
       </div>
 
