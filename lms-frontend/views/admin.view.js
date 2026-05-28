@@ -13,7 +13,7 @@ const AdminView = {
     if (!stats) {
       return `
         <div class="welcome-banner">
-          <div>
+          <div class="welcome-text">
             <div class="welcome-title">Good day, ${escHtml(user.name?.split(' ')[0] || 'Admin')}! 👋</div>
             <div class="welcome-sub">Loading dashboard data...</div>
           </div>
@@ -38,7 +38,7 @@ const AdminView = {
 
     return `
       <div class="welcome-banner">
-        <div>
+        <div class="welcome-text">
           <div class="welcome-title">Good day, ${escHtml(user.name?.split(' ')[0] || 'Admin')}! 👋</div>
           <div class="welcome-sub">Here's an overview of the IJED Learning Management System.</div>
         </div>

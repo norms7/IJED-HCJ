@@ -12,7 +12,7 @@ const TeacherView = {
     if (!subjects) {
       return `
         <div class="welcome-banner">
-          <div>
+          <div class="welcome-text">
             <div class="welcome-title">Hello, ${escHtml(user.name.split(' ')[0])}! 👩‍🏫</div>
             <div class="welcome-sub">Loading your subjects…</div>
           </div>
@@ -26,7 +26,7 @@ const TeacherView = {
     if (subjects.length === 0) {
       return `
         <div class="welcome-banner">
-          <div>
+          <div class="welcome-text">
             <div class="welcome-title">Hello, ${escHtml(user.name.split(' ')[0])}! 👩‍🏫</div>
             <div class="welcome-sub">No subjects assigned yet. Contact your administrator.</div>
           </div>
@@ -53,7 +53,7 @@ const TeacherView = {
     `).join('');
     return `
       <div class="welcome-banner">
-        <div>
+        <div class="welcome-text">
           <div class="welcome-title">Hello, ${escHtml(user.name.split(' ')[0])}! 👩‍🏫</div>
           <div class="welcome-sub">Your assigned subjects & sections</div>
         </div>
@@ -457,37 +457,37 @@ const TeacherView = {
       </div>
 
       <!-- Stats bar -->
-      <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
-        <div class="stat-card" style="flex:1;min-width:130px;padding:12px 16px">
-          <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px">Total Students</div>
-          <div style="font-size:22px;font-weight:700;color:var(--maroon)">${studentCount}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(120px,100%),1fr));gap:10px;margin-bottom:16px">
+        <div class="stat-card" style="padding:12px 14px;min-width:0">
+          <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Total Students</div>
+          <div style="font-size:clamp(18px,4vw,22px);font-weight:700;color:var(--maroon);line-height:1.2">${studentCount}</div>
         </div>
-        <div class="stat-card" style="flex:1;min-width:130px;padding:12px 16px">
-          <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px">Activities (60%)</div>
-          <div style="font-size:22px;font-weight:700;color:var(--maroon)">${totalActivities}</div>
+        <div class="stat-card" style="padding:12px 14px;min-width:0">
+          <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Activities (60%)</div>
+          <div style="font-size:clamp(18px,4vw,22px);font-weight:700;color:var(--maroon);line-height:1.2">${totalActivities}</div>
         </div>
-        <div class="stat-card" style="flex:1;min-width:130px;padding:12px 16px">
-          <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px">Modules (30%)</div>
-          <div style="font-size:22px;font-weight:700;color:var(--maroon)">${totalModules}</div>
+        <div class="stat-card" style="padding:12px 14px;min-width:0">
+          <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Modules (30%)</div>
+          <div style="font-size:clamp(18px,4vw,22px);font-weight:700;color:var(--maroon);line-height:1.2">${totalModules}</div>
         </div>
-        <div class="stat-card" style="flex:1;min-width:130px;padding:12px 16px">
-          <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px">Attendance (10%)</div>
-          <div style="font-size:22px;font-weight:700;color:var(--maroon)">${attTotal > 0 ? attTotal + ' meetings' : '—'}</div>
+        <div class="stat-card" style="padding:12px 14px;min-width:0">
+          <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Attendance (10%)</div>
+          <div style="font-size:clamp(14px,3.5vw,18px);font-weight:700;color:var(--maroon);line-height:1.2">${attTotal > 0 ? attTotal + ' mtgs' : '—'}</div>
         </div>
       </div>
 
       <!-- Grade table -->
       <div class="card">
-        <div id="gb-table-wrap" class="table-wrap">
-          <table class="data-table" id="gradebook-table">
+        <div id="gb-table-wrap" class="table-wrap" style="-webkit-overflow-scrolling:touch">
+          <table class="data-table" id="gradebook-table" style="min-width:640px">
             <thead>
               <tr>
-                <th>Student Name</th>
-                <th>LRN / Stud. No.</th>
-                <th style="text-align:center">Activities<br><span style="font-weight:400;font-size:10px">(submitted/total)</span></th>
-                <th style="text-align:center">Activity Score<br><span style="font-weight:400;font-size:10px">(60%)</span></th>
-                <th style="text-align:center">Modules Read<br><span style="font-weight:400;font-size:10px">(read/total)</span></th>
-                <th style="text-align:center">Attendance<br><span style="font-weight:400;font-size:10px">(present/total · 10%)</span></th>
+                <th style="white-space:nowrap">Student Name</th>
+                <th style="white-space:nowrap">LRN / Stud. No.</th>
+                <th style="text-align:center;white-space:nowrap">Acts<br><span style="font-weight:400;font-size:10px">(sub/tot)</span></th>
+                <th style="text-align:center;white-space:nowrap">Act%<br><span style="font-weight:400;font-size:10px">(60%)</span></th>
+                <th style="text-align:center;white-space:nowrap">Mods<br><span style="font-weight:400;font-size:10px">(read/tot)</span></th>
+                <th style="text-align:center;white-space:nowrap">Att.<br><span style="font-weight:400;font-size:10px">(pres/tot)</span></th>
                 <th style="text-align:center">Overall %</th>
                 <th style="text-align:center">Final Grade</th>
                 <th>Breakdown</th>
@@ -710,15 +710,19 @@ const TeacherView = {
       const badge = s.has_class
         ? `<span class="badge badge-green" style="font-size:11px">Class held</span>`
         : `<span class="badge badge-gray" style="font-size:11px">No class</span>`;
-      return `<div style="display:flex;align-items:center;gap:12px;padding:8px 12px;background:var(--gray-50);border-radius:var(--radius);margin-bottom:6px;font-size:13px">
-        <span style="font-weight:600;color:var(--maroon);min-width:100px">${escHtml(s.session_date)}</span>
-        ${badge}
-        <span class="badge badge-maroon" style="font-size:10px">${escHtml(s.term)} Quarter</span>
-        ${s.notes ? `<span style="color:var(--gray-400);font-size:12px">📝 ${escHtml(s.notes)}</span>` : ''}
-        <div style="margin-left:auto;display:flex;gap:6px">
-          <button class="btn btn-xs btn-outline" onclick="AttendanceController.editSession(${s.id})">✏️ Edit</button>
-          <button class="btn btn-xs btn-danger" onclick="AttendanceController.deleteSession(${s.id}, '${escHtml(s.session_date)}')">🗑️</button>
+      return `<div style="background:var(--gray-50);border-radius:var(--radius);margin-bottom:6px;overflow:hidden">
+        <!-- Row 1: date + badges + actions -->
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;flex-wrap:wrap;min-width:0">
+          <span style="font-weight:600;color:var(--maroon);white-space:nowrap;font-size:13px">${escHtml(s.session_date)}</span>
+          ${badge}
+          <span class="badge badge-maroon" style="font-size:10px;white-space:nowrap">${escHtml(s.term)} Quarter</span>
+          <div style="margin-left:auto;display:flex;gap:6px;flex-shrink:0">
+            <button class="btn btn-xs btn-outline" onclick="AttendanceController.editSession(${s.id})">✏️ Edit</button>
+            <button class="btn btn-xs btn-danger" onclick="AttendanceController.deleteSession(${s.id}, '${escHtml(s.session_date)}')">🗑️</button>
+          </div>
         </div>
+        <!-- Row 2: notes (only if present) -->
+        ${s.notes ? `<div style="padding:4px 12px 8px;font-size:12px;color:var(--gray-500);word-break:break-word;overflow-wrap:break-word;border-top:1px solid var(--gray-100)">📝 ${escHtml(s.notes)}</div>` : ''}
       </div>`;
     }).join('');
     return rows;
@@ -778,7 +782,8 @@ const TeacherView = {
     }).join('');
 
     return `
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">
+      <!-- Row 1: DATE + TERM -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
         <div>
           <label style="font-size:12px;font-weight:600;color:var(--gray-500);display:block;margin-bottom:4px">DATE</label>
           <input type="date" id="att-date" class="form-control"
@@ -789,22 +794,23 @@ const TeacherView = {
           <label style="font-size:12px;font-weight:600;color:var(--gray-500);display:block;margin-bottom:4px">TERM</label>
           <select id="att-term" class="form-control">${termOptions}</select>
         </div>
-        <div>
-          <label style="font-size:12px;font-weight:600;color:var(--gray-500);display:block;margin-bottom:4px">SESSION TYPE</label>
-          <div style="display:flex;gap:8px;padding-top:6px">
-            <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
-              <input type="radio" id="att-has-class-yes" name="att_has_class" value="yes"
-                ${hasClass ? 'checked' : ''}
-                onchange="AttendanceController.toggleHasClass(true)"
-                style="accent-color:var(--maroon)"> Class
-            </label>
-            <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
-              <input type="radio" id="att-has-class-no" name="att_has_class" value="no"
-                ${!hasClass ? 'checked' : ''}
-                onchange="AttendanceController.toggleHasClass(false)"
-                style="accent-color:var(--maroon)"> No Class
-            </label>
-          </div>
+      </div>
+      <!-- Row 2: SESSION TYPE (full width, no cramping) -->
+      <div style="margin-bottom:16px">
+        <label style="font-size:12px;font-weight:600;color:var(--gray-500);display:block;margin-bottom:8px">SESSION TYPE</label>
+        <div style="display:flex;gap:16px;flex-wrap:wrap">
+          <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;padding:8px 14px;border:1.5px solid var(--rose-tint);border-radius:var(--radius);background:var(--white);transition:border-color .2s">
+            <input type="radio" id="att-has-class-yes" name="att_has_class" value="yes"
+              ${hasClass ? 'checked' : ''}
+              onchange="AttendanceController.toggleHasClass(true)"
+              style="accent-color:var(--maroon);width:16px;height:16px"> Class held
+          </label>
+          <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;padding:8px 14px;border:1.5px solid var(--rose-tint);border-radius:var(--radius);background:var(--white);transition:border-color .2s">
+            <input type="radio" id="att-has-class-no" name="att_has_class" value="no"
+              ${!hasClass ? 'checked' : ''}
+              onchange="AttendanceController.toggleHasClass(false)"
+              style="accent-color:var(--maroon);width:16px;height:16px"> No class
+          </label>
         </div>
       </div>
 
