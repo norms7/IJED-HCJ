@@ -1018,17 +1018,17 @@ const StudentView = {
           </div>` : ''}
 
           <!-- Per-term table -->
-          <div style="overflow-x:auto">
-            <table style="width:100%;border-collapse:collapse">
+          <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+            <table style="width:100%;border-collapse:collapse;min-width:480px">
               <thead>
                 <tr style="background:#fafafa">
-                  <th style="padding:8px 12px;text-align:left;font-size:11px;color:#999;font-weight:600;border-bottom:1px solid #eee">TERM</th>
-                  <th style="padding:8px 12px;text-align:center;font-size:11px;color:#2e6b3e;font-weight:600;border-bottom:1px solid #eee">PRESENT</th>
-                  <th style="padding:8px 12px;text-align:center;font-size:11px;color:#c0392b;font-weight:600;border-bottom:1px solid #eee">ABSENT</th>
-                  <th style="padding:8px 12px;text-align:center;font-size:11px;color:#a05c00;font-weight:600;border-bottom:1px solid #eee">LATE</th>
-                  <th style="padding:8px 12px;text-align:center;font-size:11px;color:#1a4a8a;font-weight:600;border-bottom:1px solid #eee">EXCUSED</th>
-                  <th style="padding:8px 12px;text-align:center;font-size:11px;color:#666;font-weight:600;border-bottom:1px solid #eee">TOTAL</th>
-                  <th style="padding:8px 16px;text-align:left;font-size:11px;color:#666;font-weight:600;border-bottom:1px solid #eee">ATTENDANCE RATE</th>
+                  <th style="padding:8px 12px;text-align:left;font-size:11px;color:#999;font-weight:600;border-bottom:1px solid #eee;white-space:nowrap">TERM</th>
+                  <th style="padding:8px 12px;text-align:center;font-size:11px;color:#2e6b3e;font-weight:600;border-bottom:1px solid #eee;white-space:nowrap">PRESENT</th>
+                  <th style="padding:8px 12px;text-align:center;font-size:11px;color:#c0392b;font-weight:600;border-bottom:1px solid #eee;white-space:nowrap">ABSENT</th>
+                  <th style="padding:8px 12px;text-align:center;font-size:11px;color:#a05c00;font-weight:600;border-bottom:1px solid #eee;white-space:nowrap">LATE</th>
+                  <th style="padding:8px 12px;text-align:center;font-size:11px;color:#1a4a8a;font-weight:600;border-bottom:1px solid #eee;white-space:nowrap">EXCUSED</th>
+                  <th style="padding:8px 12px;text-align:center;font-size:11px;color:#666;font-weight:600;border-bottom:1px solid #eee;white-space:nowrap">TOTAL</th>
+                  <th style="padding:8px 16px;text-align:left;font-size:11px;color:#666;font-weight:600;border-bottom:1px solid #eee;white-space:nowrap">ATTENDANCE RATE</th>
                 </tr>
               </thead>
               <tbody>${termRows}</tbody>
