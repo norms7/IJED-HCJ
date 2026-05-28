@@ -32,7 +32,7 @@ const CalendarView = {
 
     return `
       <div class="cal-page">
-        <div class="cal-left">
+          <div class="cal-left" style="min-width:0">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;background:${rc.bg};border-radius:10px;padding:10px 14px">
             <span style="font-size:22px">${user.role === 'admin' ? '🧑‍💼' : user.role === 'teacher' ? '👩‍🏫' : '🎓'}</span>
             <div>

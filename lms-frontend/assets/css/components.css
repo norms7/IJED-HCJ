@@ -1098,3 +1098,318 @@ body.dark-mode .subject-accordion-inner { border-top-color: #3a1a20; }
 body.dark-mode .accordion-content-item { background: #2a1015; }
 body.dark-mode .accordion-content-item:hover { background: #3a1a20; }
 body.dark-mode .acc-item-label { color: #f0d0d5; }
+
+/* ============================================================
+   RESPONSIVE + DARK MODE FIXES
+   Covers: text overflow wrapping, horizontal scroll on tables,
+   mobile layout, and dark-mode readability for all components.
+   ============================================================ */
+
+/* ── Global text wrapping — no more overflow on any text ── */
+* { word-break: break-word; }
+
+/* Exceptions: badges, buttons, nav labels stay nowrap */
+.badge, .btn, .nav-item, .tab-btn, .um-tab { word-break: normal; white-space: nowrap; }
+
+/* Heading / title wrapping everywhere */
+h1, h2, h3, h4, h5,
+.stat-value,
+.card-title,
+.modal-title,
+.section-header h2,
+.topbar-page-title {
+  overflow-wrap: break-word;
+  white-space: normal;
+}
+
+/* ── Sidebar brand — wraps on mobile ── */
+.sidebar-brand-name { white-space: normal !important; line-height: 1.2; }
+
+/* ── Tables — ALL tables get horizontal scroll ── */
+.table-wrap,
+.card .table-wrap,
+div[style*="overflow-x:auto"],
+div[style*="overflow-x: auto"] {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent inline style from blocking overflow on activity table wrapper */
+.table-wrap[style*="overflow:hidden"] {
+  overflow: visible !important;
+  overflow-x: auto !important;
+}
+
+/* Activity table: keep columns readable, allow scroll */
+.activity-table {
+  min-width: 640px; /* forces scroll instead of squish */
+  table-layout: auto;
+}
+
+/* My Grades / general data-table */
+.data-table { min-width: 600px; }
+
+/* Attendance per-term table */
+.attendance-term-table { min-width: 520px; }
+
+/* Student attendance per-subject table — full width on desktop, scrollable on mobile */
+.att-term-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.att-term-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+@media (max-width: 640px) {
+  .att-term-table {
+    min-width: 480px; /* forces scroll on small screens instead of squishing */
+  }
+  .att-term-table th,
+  .att-term-table td {
+    white-space: nowrap;
+    padding: 8px 8px !important;
+    font-size: 11px !important;
+  }
+}
+
+/* ── Section header — stack on small screens ── */
+.section-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+/* ── Stat grid — 2-col on mobile ── */
+@media (max-width: 600px) {
+  .stat-grid { grid-template-columns: 1fr 1fr !important; }
+}
+@media (max-width: 380px) {
+  .stat-grid { grid-template-columns: 1fr !important; }
+}
+
+/* ── Dashboard 2-panel (My Subjects + Recent Grades) ── */
+.dashboard-panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 700px) {
+  .dashboard-panels { grid-template-columns: 1fr; }
+}
+
+/* ── Content area padding on mobile ── */
+@media (max-width: 600px) {
+  .content-area { padding: 12px; }
+  .modal { padding: 20px 16px; width: 96%; }
+  .card-body { padding: 14px; }
+  .topbar-time { display: none; } /* save space on tiny screens */
+}
+
+/* ── My Grades stat mini-cards — wrap on mobile ── */
+.grades-stats-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.grades-stats-row .stat-card { flex: 1; min-width: 110px; }
+
+/* ── Activity / grade table cells — no nowrap on title ── */
+.activity-table td:first-child,
+.data-table td:first-child { max-width: 220px; word-break: break-word; white-space: normal; }
+
+/* ── Attendance cards — badge row wraps ── */
+.attendance-badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ── Search box responsive ── */
+.search-box { min-width: 0; flex: 1; max-width: 320px; }
+@media (max-width: 500px) {
+  .search-box { max-width: 100%; width: 100%; }
+  .section-header { flex-direction: column; }
+}
+
+
+/* ============================================================
+   DARK MODE — COMPLETE READABILITY FIXES
+   All inline-style elements & dynamic cards covered.
+   ============================================================ */
+
+/* ── Topbar background in dark ── */
+body.dark-mode .topbar { background: #1a1014 !important; }
+
+/* ── Activity table wrapper (inline style background:white) ── */
+body.dark-mode .table-wrap[style*="background:white"],
+body.dark-mode .table-wrap[style*="background: white"] {
+  background: #1e1013 !important;
+  border-color: #3a1a20 !important;
+}
+
+/* ── Activity table cell text ── */
+body.dark-mode .activity-table tbody td { color: #f0d0d5 !important; }
+body.dark-mode .activity-table tbody tr:hover { background: #2a1015 !important; }
+body.dark-mode .activity-table thead tr { background: #5a0015 !important; }
+
+/* ── data-table (My Grades) ── */
+body.dark-mode .data-table th { background: #341f24 !important; color: #f0c0c8 !important; border-color: #4a2d33 !important; }
+body.dark-mode .data-table td { color: #f0d0d5 !important; border-color: #3a1a20 !important; }
+body.dark-mode .data-table tr:hover td { background: #2a1015 !important; }
+
+/* ── Cards with inline background:white ── */
+body.dark-mode [style*="background:white"],
+body.dark-mode [style*="background: white"],
+body.dark-mode [style*="background:#fff"],
+body.dark-mode [style*="background: #fff"],
+body.dark-mode [style*="background:#faf"],
+body.dark-mode [style*="background:#fdf"] {
+  background: #1e1013 !important;
+}
+
+/* ── Inline text colors that become unreadable on dark ── */
+body.dark-mode [style*="color:#666"],
+body.dark-mode [style*="color: #666"],
+body.dark-mode [style*="color:#777"],
+body.dark-mode [style*="color: #777"] { color: #c0909a !important; }
+
+body.dark-mode [style*="color:#999"],
+body.dark-mode [style*="color: #999"],
+body.dark-mode [style*="color:#aaa"],
+body.dark-mode [style*="color: #aaa"] { color: #907078 !important; }
+
+body.dark-mode [style*="color:#333"],
+body.dark-mode [style*="color: #333"] { color: #f0d0d5 !important; }
+
+/* ── Inline border colors ── */
+body.dark-mode [style*="border-bottom:1px solid var(--gray-100)"],
+body.dark-mode [style*="border: 1px solid var(--gray-200)"],
+body.dark-mode [style*="border:1px solid var(--gray-200)"] {
+  border-color: #3a1a20 !important;
+}
+
+/* ── Dashboard subject list items (inline styled) ── */
+body.dark-mode .subject-item[style],
+body.dark-mode div.subject-item {
+  background: #1e1013 !important;
+  border-color: #3a1a20 !important;
+  color: #f0d0d5 !important;
+}
+
+/* ── Recent grades card (dashboard) ── */
+body.dark-mode div[style*="border-bottom:1px solid var(--gray-100)"],
+body.dark-mode div[style*="border-bottom: 1px solid var(--gray-100)"] {
+  border-color: #3a1a20 !important;
+}
+
+/* ── Badges in dark mode — ALL badge variants readable ── */
+body.dark-mode .badge-green  { background: #0d2a18 !important; color: #5dcc88 !important; }
+body.dark-mode .badge-red    { background: #2a0d0d !important; color: #f08080 !important; }
+body.dark-mode .badge-gold   { background: #2a2000 !important; color: #d4a820 !important; }
+body.dark-mode .badge-gray   { background: #2a1a1f !important; color: #c0909a !important; }
+body.dark-mode .badge-blue   { background: #0d1a2a !important; color: #7090e0 !important; }
+body.dark-mode .badge-maroon { background: #2a0d12 !important; color: #f08090 !important; }
+body.dark-mode .badge-danger { background: #2a0d0d !important; color: #f08080 !important; }
+
+/* ── Grade pills in dark mode ── */
+body.dark-mode .grade-a  { background: #0d2a18 !important; color: #5dcc88 !important; }
+body.dark-mode .grade-b  { background: #0d1a2a !important; color: #7090e0 !important; }
+body.dark-mode .grade-c  { background: #2a1800 !important; color: #d09040 !important; }
+body.dark-mode .grade-d  { background: #2a0d0d !important; color: #f08080 !important; }
+body.dark-mode .grade-ng { background: #1e1013 !important; color: #907078 !important; }
+
+/* ── Attendance cards (dynamic inline styles) ── */
+body.dark-mode div[style*="border:1px solid var(--gray-200)"],
+body.dark-mode div[style*="border: 1px solid var(--gray-200)"] {
+  background: #1e1013 !important;
+  border-color: #3a1a20 !important;
+}
+
+/* Override the pink rose-tint card header in dark mode */
+body.dark-mode [style*="background:var(--rose-tint"],
+body.dark-mode [style*="background: var(--rose-tint"],
+body.dark-mode [style*="background:var(--rose-light"],
+body.dark-mode [style*="background: var(--rose-light"] {
+  background: #2a1015 !important;
+}
+
+/* ── Grade scale legend box ── */
+body.dark-mode [style*="background:var(--gray-50)"],
+body.dark-mode [style*="background: var(--gray-50)"] {
+  background: #1e1013 !important;
+  border-color: #3a1a20 !important;
+  color: #c09098 !important;
+}
+body.dark-mode [style*="background:var(--gray-50)"] strong,
+body.dark-mode [style*="background: var(--gray-50)"] strong {
+  color: #e0b0b8 !important;
+}
+
+/* ── My Grades stat mini-cards (inline background) ── */
+body.dark-mode .stat-card[style] { background: #1e1013 !important; border-color: #3a1a20 !important; }
+
+/* ── Activity answer sheet / result page ── */
+body.dark-mode .activity-result-card { background: #1e1013 !important; border-color: #3a1a20 !important; }
+body.dark-mode .question-block { background: #1e1013 !important; border-color: #3a1a20 !important; }
+
+/* ── Modal dark ── */
+body.dark-mode .modal { background: #1e1013 !important; border-color: #3a1a20 !important; }
+body.dark-mode .modal-header { border-bottom-color: #3a1a20 !important; }
+body.dark-mode .modal-footer { border-top-color: #3a1a20 !important; }
+
+/* ── Input, select, textarea in dark ── */
+body.dark-mode input,
+body.dark-mode select,
+body.dark-mode textarea {
+  background: #2a1015 !important;
+  border-color: #4a2030 !important;
+  color: #f0d0d5 !important;
+}
+body.dark-mode input::placeholder,
+body.dark-mode textarea::placeholder { color: #806070 !important; }
+body.dark-mode select option { background: #2a1015; color: #f0d0d5; }
+
+/* ── Radio / checkbox label text ── */
+body.dark-mode input[type="radio"] + *,
+body.dark-mode input[type="checkbox"] + * { color: #f0d0d5 !important; }
+
+/* ── Inline dark backgrounds that accidentally become invisible ── */
+body.dark-mode [style*="background:#e6f4ea"],
+body.dark-mode [style*="background: #e6f4ea"] { background: #0d2a18 !important; }
+body.dark-mode [style*="background:#fdeaea"],
+body.dark-mode [style*="background: #fdeaea"],
+body.dark-mode [style*="background:#fde8ec"],
+body.dark-mode [style*="background: #fde8ec"] { background: #2a0d12 !important; }
+body.dark-mode [style*="background:#fff8e1"],
+body.dark-mode [style*="background: #fff8e1"] { background: #2a1e00 !important; }
+body.dark-mode [style*="background:#e8f0fe"],
+body.dark-mode [style*="background: #e8f0fe"] { background: #0d1a2a !important; }
+body.dark-mode [style*="background:#eee"],
+body.dark-mode [style*="background: #eee"],
+body.dark-mode [style*="background:#f0f0f0"],
+body.dark-mode [style*="background: #f0f0f0"],
+body.dark-mode [style*="background:#fafafa"],
+body.dark-mode [style*="background: #fafafa"] { background: #1e1013 !important; }
+
+/* ── Status badge inline backgrounds ── */
+body.dark-mode [style*="background:#2e6b3e"] { background: #0d2a18 !important; }
+body.dark-mode [style*="background:#c0392b"] { background: #2a0d0d !important; }
+body.dark-mode [style*="background:#a05c00"] { background: #2a1800 !important; }
+body.dark-mode [style*="background:#1a4a8a"] { background: #0d1a2a !important; }
+
+/* ── Attendance rate bar track ── */
+body.dark-mode [style*="background:#eee;border-radius:4px"] { background: #2a1015 !important; }
+
+/* ── Empty state ── */
+body.dark-mode .empty-state { background: transparent !important; }
+
+/* ── Notification bell ── */
+body.dark-mode .notif-bell { color: #f0d0d5 !important; }
+
+/* ── Profile dropdown dark ── */
+body.dark-mode .profile-dropdown-divider { background: #3a1a20 !important; }

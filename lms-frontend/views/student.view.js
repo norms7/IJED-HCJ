@@ -44,14 +44,15 @@ const StudentView = {
     };
     const subjectHTML = subjects.length
       ? subjects.map((s, i) => {
-          const info   = NAMED[s.subject_name] || { color: '#555', icon: '📚' };
+          const info = NAMED[s.subject_name] || { color: '#555', icon: '📚' };
           return `
-            <div class="subject-item" style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--gray-100)">
-              <div style="width:36px;height:36px;border-radius:8px;background:${info.color};display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${info.icon}</div>
+            <div class="db-subject-item" style="display:flex;align-items:center;gap:12px;padding:9px 10px;margin:4px 0;border-radius:10px;border-left:3px solid ${info.color};background:linear-gradient(90deg,${info.color}12 0%,transparent 80%);transition:background .18s;">
+              <div style="width:36px;height:36px;border-radius:9px;background:${info.color};display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;box-shadow:0 2px 6px ${info.color}44">${info.icon}</div>
               <div style="flex:1;min-width:0">
-                <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(s.subject_name)}</div>
-                <div style="font-size:11px;color:var(--gray-400)">${escHtml(s.class_name || '—')}</div>
+                <div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#1a1a2e">${escHtml(s.subject_name)}</div>
+                <div style="font-size:11px;color:var(--gray-400);margin-top:1px">${escHtml(s.class_name || '—')}</div>
               </div>
+              <span style="font-size:16px;color:${info.color};opacity:.45;flex-shrink:0">›</span>
             </div>`;
         }).join('')
       : `<p class="text-muted text-sm" style="padding:12px 0">No subjects enrolled yet</p>`;
@@ -59,33 +60,31 @@ const StudentView = {
     /* ── Recent grades list ────────────────────────────────────────────── */
     const gradesHTML = recentGrades.length
       ? recentGrades.slice(0, 6).map(sub => {
-          // If not yet graded by teacher, show as pending
           if (!sub.is_graded || sub.score === null) {
             return `
-              <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--gray-100)">
+              <div style="display:flex;align-items:center;gap:12px;padding:9px 10px;margin:4px 0;border-radius:10px;border-left:3px solid #d1d5db;background:#fafafa;">
+                <div style="width:36px;height:36px;border-radius:50%;border:2px solid #e5e7eb;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px;color:#aaa;font-weight:700">?</div>
                 <div style="flex:1;min-width:0">
-                  <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(sub._activity || '?')}</div>
-                  <div style="font-size:12px;color:var(--gray-400)">${escHtml(sub._subject || '?')}</div>
+                  <div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#1a1a2e">${escHtml(sub._activity || '?')}</div>
+                  <div style="font-size:11px;color:var(--gray-400);margin-top:1px">${escHtml(sub._subject || '?')}</div>
                 </div>
-                <div style="text-align:right;flex-shrink:0">
-                  <span class="badge badge-gray" style="font-size:11px">Pending</span>
-                  <div style="font-size:11px;color:var(--gray-400);margin-top:2px">Awaiting grade</div>
-                </div>
+                <span class="badge badge-gray" style="font-size:10px;flex-shrink:0">Pending</span>
               </div>`;
           }
           const pct  = sub.max_score > 0 ? Math.round((sub.score ?? 0) / sub.max_score * 100) : 0;
           const gc   = pct >= 90 ? 'badge-green' : pct >= 75 ? 'badge-gold' : 'badge-red';
           const gl   = pct >= 90 ? 'Excellent'  : pct >= 75 ? 'Passing'    : 'Needs Work';
+          const ringColor = pct >= 90 ? '#22c55e' : pct >= 75 ? '#f59e0b' : '#ef4444';
+          const ringBg    = pct >= 90 ? '#e6f4ea'  : pct >= 75 ? '#fff8e1'  : '#fde8ec';
+          const borderCol = pct >= 90 ? '#22c55e'  : pct >= 75 ? '#f59e0b'  : '#ef4444';
           return `
-            <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--gray-100)">
+            <div style="display:flex;align-items:center;gap:12px;padding:9px 10px;margin:4px 0;border-radius:10px;border-left:3px solid ${borderCol};background:linear-gradient(90deg,${borderCol}10 0%,transparent 80%);">
+              <div style="width:36px;height:36px;border-radius:50%;border:2.5px solid ${ringColor};background:${ringBg};display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px;font-weight:800;color:${ringColor}">${pct}%</div>
               <div style="flex:1;min-width:0">
-                <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(sub._activity || '?')}</div>
-                <div style="font-size:12px;color:var(--gray-400)">${escHtml(sub._subject || '?')}</div>
+                <div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#1a1a2e">${escHtml(sub._activity || '?')}</div>
+                <div style="font-size:11px;color:var(--gray-400);margin-top:1px">${escHtml(sub._subject || '?')} · ${sub.score}/${sub.max_score}</div>
               </div>
-              <div style="text-align:right;flex-shrink:0">
-                <span class="badge ${gc}" style="font-size:11px">${gl}</span>
-                <div style="font-size:11px;color:var(--gray-400);margin-top:2px">${sub.score}/${sub.max_score}</div>
-              </div>
+              <span class="badge ${gc}" style="font-size:10px;flex-shrink:0">${gl}</span>
             </div>`;
         }).join('')
       : `<p class="text-muted text-sm" style="padding:12px 0">No activity submissions yet</p>`;
@@ -149,14 +148,24 @@ const StudentView = {
 
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+      <div class="dashboard-panels">
         <div class="card">
-          <div class="card-header"><span class="card-title">My Subjects</span></div>
-          <div class="card-body" style="padding:0 14px 4px">${subjectHTML}</div>
+          <div class="card-header" style="border-bottom:1px solid var(--gray-100);padding-bottom:10px">
+            <span class="card-title" style="display:flex;align-items:center;gap:7px">
+              <span style="font-size:16px">📚</span> My Subjects
+              ${subjects.length ? `<span style="font-size:11px;font-weight:500;color:var(--gray-400);margin-left:2px">${subjects.length} enrolled</span>` : ''}
+            </span>
+          </div>
+          <div class="card-body" style="padding:4px 10px 8px">${subjectHTML}</div>
         </div>
         <div class="card">
-          <div class="card-header"><span class="card-title">Recent Grades</span></div>
-          <div class="card-body" style="padding:0 14px 4px">${gradesHTML}</div>
+          <div class="card-header" style="border-bottom:1px solid var(--gray-100);padding-bottom:10px">
+            <span class="card-title" style="display:flex;align-items:center;gap:7px">
+              <span style="font-size:16px">🏆</span> Recent Grades
+              ${recentGrades.length ? `<span style="font-size:11px;font-weight:500;color:var(--gray-400);margin-left:2px">${Math.min(recentGrades.length,6)} latest</span>` : ''}
+            </span>
+          </div>
+          <div class="card-body" style="padding:4px 10px 8px">${gradesHTML}</div>
         </div>
       </div>`;
   },
@@ -554,7 +563,7 @@ const StudentView = {
         <div class="section-header-left"><h2>Activities &amp; Quizzes</h2><p id="act-student-count">${apiActivities.length} activity(s)</p></div>
         <div class="search-box"><span>🔍</span><input type="text" id="global-search" placeholder="Search activities…" oninput="StudentController._filterActivities(this.value)" /></div>
       </div>
-      <div class="table-wrap" style="margin-top:8px;border:1px solid var(--gray-200);border-radius:12px;overflow:hidden;background:white;box-shadow:0 1px 4px rgba(0,0,0,.05)">
+      <div class="table-wrap" style="margin-top:8px;border:1px solid var(--gray-200);border-radius:12px;overflow-x:auto;overflow-y:visible;background:white;box-shadow:0 1px 4px rgba(0,0,0,.05);-webkit-overflow-scrolling:touch">
         <table class="activity-table">
           <thead>
             <tr>
@@ -809,7 +818,7 @@ const StudentView = {
 
     return `
       <!-- Summary strip -->
-      <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+      <div class="grades-stats-row">
         <div class="stat-card" style="flex:1;min-width:120px;padding:12px 16px">
           <div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px">Submissions</div>
           <div style="font-size:22px;font-weight:700;color:var(--maroon)">${graded.length}</div>
