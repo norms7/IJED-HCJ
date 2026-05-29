@@ -238,54 +238,59 @@ const GradebookController = {
     if (!this._lastExportData) { Toast.show('No gradebook loaded', 'error'); return; }
     const { activities, modules, subjectName, term } = this._lastExportData;
 
-    const actRows = activities.map(act => {
+    const TYPE_LABELS = { quiz:'Quiz', long_quiz:'Long Quiz', task_performance:'Task Performance',
+      exam:'Exam', lab_exercise:'Lab Exercise', assignment:'Assignment', other:'Other' };
+
+    const actCards = activities.map(act => {
       const sub      = act._submissions?.find(s => s.student_id === studentId);
       const score    = sub?.is_graded && sub?.score != null ? sub.score : null;
       const maxScore = act.max_score ?? 0;
       const pct      = score !== null && maxScore > 0 ? Math.round(score / maxScore * 100) : null;
       const statusBadge = !sub
-        ? `<span class="badge badge-gray">Not submitted</span>`
+        ? `<span class="badge badge-gray" style="font-size:10px">Not submitted</span>`
         : !sub.is_graded
-          ? `<span class="badge badge-gold">Pending grade</span>`
-          : `<span class="badge badge-green">Graded</span>`;
-      return `<tr>
-        <td>${escHtml(act.title)}</td>
-        <td><span class="badge badge-maroon" style="font-size:10px">${escHtml(act.activity_type || '')}</span></td>
-        <td style="text-align:center">${score !== null ? `${score}/${maxScore}` : '—'}</td>
-        <td style="text-align:center">${pct !== null ? `<span class="badge ${pct >= 75 ? 'badge-green' : 'badge-danger'}">${pct}%</span>` : '—'}</td>
-        <td>${statusBadge}</td>
-      </tr>`;
-    }).join('') || '<tr><td colspan="5" class="text-center text-muted">No activities</td></tr>';
+          ? `<span class="badge badge-gold" style="font-size:10px">Pending grade</span>`
+          : `<span class="badge badge-green" style="font-size:10px">Graded</span>`;
+      const pctBadge = pct !== null
+        ? `<span class="badge ${pct >= 75 ? 'badge-green' : 'badge-danger'}" style="font-size:10px">${pct}%</span>`
+        : '—';
+      const typeLabel = TYPE_LABELS[act.activity_type] || act.activity_type || '—';
+      return `
+        <div style="background:var(--gray-50,#faf9f9);border:1px solid var(--gray-100,#f0e8e8);border-radius:8px;padding:10px 12px;margin-bottom:8px">
+          <div style="font-weight:600;font-size:13px;color:var(--maroon);margin-bottom:6px">${escHtml(act.title)}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:4px">
+            <span style="color:var(--gray-400);font-size:11px;text-transform:uppercase;letter-spacing:.3px">Type</span>
+            <span><span class="badge badge-maroon" style="font-size:10px">${escHtml(typeLabel)}</span></span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:4px">
+            <span style="color:var(--gray-400);font-size:11px;text-transform:uppercase;letter-spacing:.3px">Score</span>
+            <span style="font-weight:700;color:var(--maroon)">${score !== null ? `${score}/${maxScore}` : `—/${maxScore}`}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:4px">
+            <span style="color:var(--gray-400);font-size:11px;text-transform:uppercase;letter-spacing:.3px">%</span>
+            <span>${pctBadge}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">
+            <span style="color:var(--gray-400);font-size:11px;text-transform:uppercase;letter-spacing:.3px">Status</span>
+            <span>${statusBadge}</span>
+          </div>
+        </div>`;
+    }).join('') || '<div style="color:var(--gray-400);font-size:13px;text-align:center;padding:12px">No activities</div>';
 
-    const modRows = modules.map(mod => `<tr>
-      <td>${escHtml(mod.title)}</td>
-      <td><span class="badge badge-gray" style="font-size:10px">—</span></td>
-    </tr>`).join('') || '<tr><td colspan="2" class="text-center text-muted">No modules</td></tr>';
+    const modCards = modules.map(mod => `
+      <div style="background:var(--gray-50,#faf9f9);border:1px solid var(--gray-100,#f0e8e8);border-radius:8px;padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:13px;font-weight:600;color:var(--maroon)">${escHtml(mod.title)}</span>
+        <span class="badge badge-gray" style="font-size:10px">—</span>
+      </div>`
+    ).join('') || '<div style="color:var(--gray-400);font-size:13px;text-align:center;padding:12px">No modules</div>';
 
-    const thStyle = 'padding:8px 10px;text-align:left;color:var(--maroon);font-size:11px;border-bottom:2px solid var(--rose-mid);background:var(--gray-50)';
     const body = `
       <div style="font-weight:600;font-size:15px;margin-bottom:4px;color:var(--maroon)">📋 ${escHtml(studentName)}</div>
       <div style="font-size:12px;color:var(--gray-400);margin-bottom:14px">${escHtml(subjectName)} · ${escHtml(term)} Quarter</div>
       <div style="margin-bottom:8px;font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.5px">Activities</div>
-      <div class="table-wrap" style="margin-bottom:16px">
-        <table style="width:100%;border-collapse:collapse;font-size:13px">
-          <thead><tr>
-            <th style="${thStyle}">Activity</th><th style="${thStyle}">Type</th>
-            <th style="${thStyle};text-align:center">Score</th><th style="${thStyle};text-align:center">%</th>
-            <th style="${thStyle}">Status</th>
-          </tr></thead>
-          <tbody>${actRows}</tbody>
-        </table>
-      </div>
+      <div style="margin-bottom:16px">${actCards}</div>
       <div style="margin-bottom:8px;font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.5px">Modules</div>
-      <div class="table-wrap">
-        <table style="width:100%;border-collapse:collapse;font-size:13px">
-          <thead><tr>
-            <th style="${thStyle}">Module</th><th style="${thStyle}">Read Status</th>
-          </tr></thead>
-          <tbody>${modRows}</tbody>
-        </table>
-      </div>`;
+      <div>${modCards}</div>`;
 
     Modal.show(`Student Breakdown`, body,
       `<button class="btn btn-ghost" onclick="Modal.close()">Close</button>`
