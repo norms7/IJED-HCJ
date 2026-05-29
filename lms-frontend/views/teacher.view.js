@@ -569,81 +569,56 @@ const TeacherView = {
       </tr>`;
     }).join('');
 
+    const isMobile = window.innerWidth <= 600;
+
+    if (!isMobile) {
+      return `
+        <div class="card">
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th style="white-space:nowrap">Section / Class</th>
+                  <th style="white-space:nowrap">Grade Level</th>
+                  <th style="white-space:nowrap">Section ID</th>
+                  <th style="white-space:nowrap">Subject(s)</th>
+                  <th style="white-space:nowrap">School Year</th>
+                  <th style="white-space:nowrap">Action</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        </div>`;
+    }
+
+    // ── Mobile: card layout ──────────────────────────────────────────────────
     return `
-      <style>
-        .att-sections-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-        .att-sections-table-wrap table th { white-space: nowrap; }
-        @media (max-width: 600px) {
-          .att-sections-desktop { display: none !important; }
-          .att-sections-cards { display: flex; flex-direction: column; gap: 10px; }
-        }
-        @media (min-width: 601px) {
-          .att-sections-cards { display: none !important; }
-        }
-        .att-sec-card {
-          background: #fff;
-          border: 1px solid var(--gray-100, #f0e8e8);
-          border-radius: 10px;
-          padding: 14px 16px;
-          box-shadow: 0 1px 4px rgba(0,0,0,.05);
-          cursor: pointer;
-        }
-        .att-sec-card-title { font-weight: 700; font-size: 15px; color: var(--maroon, #7b1c1c); margin-bottom: 2px; }
-        .att-sec-card-sub   { font-size: 12px; color: var(--gray-400, #9ca3af); margin-bottom: 10px; }
-        .att-sec-card-row   {
-          display: flex; justify-content: space-between; align-items: center;
-          padding: 5px 0; border-bottom: 1px solid var(--gray-100, #f3f4f6);
-          font-size: 13px;
-        }
-        .att-sec-card-row:last-child { border-bottom: none; }
-        .att-sec-card-label { color: var(--gray-400, #9ca3af); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
-        .att-sec-card-value { font-weight: 600; color: #1f2937; }
-      </style>
-
-      <!-- Desktop table -->
-      <div class="card att-sections-desktop">
-        <div class="att-sections-table-wrap">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Section / Class</th>
-                <th>Grade Level</th>
-                <th>Section ID</th>
-                <th>Subject(s)</th>
-                <th>School Year</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Mobile cards -->
-      <div class="att-sections-cards">
+      <div style="display:flex;flex-direction:column;gap:10px">
         ${sections.map(sec => {
           const sectionNames = sec.sections.map(s => s.name).join(', ') || '—';
           return `
-          <div class="att-sec-card" onclick="AttendanceController.openSection(${sec.class_id}, '${escHtml(sec.class_name)}')">
-            <div class="att-sec-card-title">${escHtml(sec.class_name)}</div>
-            <div class="att-sec-card-sub">${escHtml(sectionNames)}</div>
-            <div class="att-sec-card-row">
-              <span class="att-sec-card-label">Grade Level</span>
-              <span class="att-sec-card-value">${escHtml(sec.grade_level || '—')}</span>
+          <div style="background:#fff;border:1px solid #f0e8e8;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.05);cursor:pointer"
+               onclick="AttendanceController.openSection(${sec.class_id}, '${escHtml(sec.class_name)}')">
+            <div style="font-weight:700;font-size:15px;color:var(--maroon);margin-bottom:2px">${escHtml(sec.class_name)}</div>
+            <div style="font-size:12px;color:var(--gray-400);margin-bottom:10px">${escHtml(sectionNames)}</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #f3f4f6;font-size:13px">
+              <span style="color:var(--gray-400);font-size:11px;text-transform:uppercase;letter-spacing:.4px">Grade Level</span>
+              <span style="font-weight:600;color:#1f2937">${escHtml(sec.grade_level || '—')}</span>
             </div>
-            <div class="att-sec-card-row">
-              <span class="att-sec-card-label">Section ID</span>
-              <span class="att-sec-card-value" style="font-size:12px;color:var(--gray-500)">${escHtml(sec.class_id.toString())}</span>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #f3f4f6;font-size:13px">
+              <span style="color:var(--gray-400);font-size:11px;text-transform:uppercase;letter-spacing:.4px">Section ID</span>
+              <span style="font-weight:600;font-size:12px;color:var(--gray-500)">${escHtml(sec.class_id.toString())}</span>
             </div>
-            <div class="att-sec-card-row">
-              <span class="att-sec-card-label">Subject(s)</span>
-              <span style="display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:5px 0;border-bottom:1px solid #f3f4f6;font-size:13px">
+              <span style="color:var(--gray-400);font-size:11px;text-transform:uppercase;letter-spacing:.4px;padding-top:2px">Subject(s)</span>
+              <span style="display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;max-width:65%">
                 ${sec.subjects.map(s => `<span class="badge badge-maroon" style="font-size:11px">${escHtml(s.subject_name)}</span>`).join('')}
               </span>
             </div>
-            <div class="att-sec-card-row">
-              <span class="att-sec-card-label">School Year</span>
-              <span class="att-sec-card-value" style="font-size:12px">${escHtml(sec.school_year || '—')}</span>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px">
+              <span style="color:var(--gray-400);font-size:11px;text-transform:uppercase;letter-spacing:.4px">School Year</span>
+              <span style="font-weight:600;font-size:12px">${escHtml(sec.school_year || '—')}</span>
             </div>
             <div style="margin-top:10px">
               <button class="btn btn-xs btn-primary" style="width:100%"
