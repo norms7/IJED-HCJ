@@ -57,6 +57,9 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ── CORS — must come before SlowAPIMiddleware ──────────────────────────────────
+# IMPORTANT: CORSMiddleware must be added FIRST so that even 500 errors from
+# the database still return an Access-Control-Allow-Origin header. Without this,
+# the browser reports a CORS error instead of the real 500, masking the true bug.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
@@ -78,8 +81,19 @@ async def integrity_error_handler(request: Request, exc: IntegrityError):
         content={"detail": "Database constraint violation. Record may already exist."},
     )
 
-# NOTE: The broad Exception handler was removed — it was intercepting slowapi's
-# RateLimitExceeded before the 429 handler could respond correctly.
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """
+    Catch-all handler so that 500 errors always return a JSON response
+    WITH the CORS header attached (FastAPI's default 500 does not go through
+    CORSMiddleware when the error happens before the response is built).
+    """
+    import logging
+    logging.getLogger("uvicorn.error").exception("Unhandled exception", exc_info=exc)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": "Internal server error. Please try again."},
+    )
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
