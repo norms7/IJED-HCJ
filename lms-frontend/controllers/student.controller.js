@@ -128,8 +128,40 @@ const StudentController = {
     try {
       const activity = await api.getStudentActivity(activityId);
       if (activity.is_past_due) {
-        Toast.show('This activity is past due. No late submissions.', 'error');
-        this.loadActivities();
+        const dueDateStr = activity.due_date
+          ? new Date(activity.due_date).toLocaleString('en-PH', {
+              month: 'long', day: 'numeric', year: 'numeric',
+              hour: 'numeric', minute: '2-digit', hour12: true
+            })
+          : 'unknown date';
+        area.innerHTML = `
+          <div style="max-width:480px;margin:60px auto;text-align:center;padding:0 16px;">
+            <div style="font-size:60px;margin-bottom:16px;">⏰</div>
+            <h2 style="font-family:'Georgia',serif;color:#7b1c1c;font-size:24px;margin-bottom:10px;">
+              Activity Past Due
+            </h2>
+            <p style="font-size:14px;color:#6b7280;margin-bottom:6px;">
+              <strong style="color:#1f2937;">${escHtml(activity.title)}</strong>
+            </p>
+            <p style="font-size:13px;color:#9ca3af;margin-bottom:24px;">
+              Deadline was <strong style="color:#991b1b;">${escHtml(dueDateStr)}</strong>
+            </p>
+            <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:20px 22px;margin-bottom:28px;text-align:left;">
+              <p style="font-size:14px;color:#7f1d1d;line-height:1.8;margin:0;">
+                ⚠️ This activity is already past its deadline and can no longer accept submissions.<br><br>
+                If you believe this is a mistake or need an extension, please
+                <strong>contact your teacher</strong> about this activity.
+              </p>
+            </div>
+            <button onclick="StudentController.loadActivities()"
+              style="background:#7b1c1c;color:#fff;border:none;border-radius:8px;
+                     padding:10px 24px;font-size:14px;font-weight:600;cursor:pointer;
+                     transition:background .2s;"
+              onmouseover="this.style.background='#5a1212'"
+              onmouseout="this.style.background='#7b1c1c'">
+              ← Back to Activities
+            </button>
+          </div>`;
         return;
       }
       if (!activity.can_answer) {
