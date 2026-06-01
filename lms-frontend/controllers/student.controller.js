@@ -58,15 +58,19 @@ const StudentController = {
         // response (backend returns submission: null), fetch result in parallel
         // to get the real score/grade for display in the table.
         const submittedWithNoScore = activities.filter(a => {
-          const isSubmitted =
+          // Exclude past-due activities that were never submitted —
+          // they have can_answer=false but no submission row, so /result returns 404.
+          const hasActualSubmission =
             a.already_submitted === true ||
             a.status === 'submitted'     ||
             a.status === 'graded'        ||
-            a.can_answer === false;
+            (a.submission && (a.submission.submitted_at || a.submission.score != null)) ||
+            (a.my_submission && (a.my_submission.submitted_at || a.my_submission.score != null));
+          if (!hasActualSubmission) return false;
           const hasScoreAlready =
             (a.submission && a.submission.score != null) ||
             (a.my_submission && a.my_submission.score != null);
-          return isSubmitted && !hasScoreAlready;
+          return !hasScoreAlready;
         });
 
         if (submittedWithNoScore.length) {
@@ -171,8 +175,19 @@ const StudentController = {
       this._currentActivity = activity;
       area.innerHTML = StudentView.activityAnswerSheet(activity);
     } catch (err) {
-      Toast.show('Failed to load activity: ' + err.message, 'error');
-      this.loadActivities();
+      // Show error inline instead of silently redirecting —
+      // a redirect looks like a bug to the student.
+      area.innerHTML = `
+        <div style="max-width:420px;margin:60px auto;text-align:center;padding:0 16px;">
+          <div style="font-size:52px;margin-bottom:16px;">😕</div>
+          <h2 style="color:#7b1c1c;font-size:20px;margin-bottom:8px;">Could not load activity</h2>
+          <p style="font-size:13px;color:#9ca3af;margin-bottom:24px;">${escHtml(err.message || 'Unknown error')}</p>
+          <button onclick="StudentController.loadActivities()"
+            style="background:#7b1c1c;color:#fff;border:none;border-radius:8px;
+                   padding:10px 24px;font-size:14px;font-weight:600;cursor:pointer;">
+            ← Back to Activities
+          </button>
+        </div>`;
     }
   },
 
