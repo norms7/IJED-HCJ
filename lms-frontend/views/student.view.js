@@ -416,11 +416,13 @@ const StudentView = {
       // IMPORTANT: backend may return submission: null even when already submitted
       // (already_submitted: true / status: "submitted" / can_answer: false are the real signals).
       const rawSub = a.submission || a.my_submission || null;
+      // past_due activities have can_answer=false but were never submitted —
+      // exclude them so we don't build a fake sub stub that shows a View button.
       const isAlreadySubmitted =
         a.already_submitted === true ||
         a.status === 'submitted'     ||
         a.status === 'graded'        ||
-        a.can_answer === false;
+        (a.can_answer === false && a.status !== 'past_due' && a.is_past_due !== true);
 
       const sub = rawSub
         ? {
@@ -540,13 +542,16 @@ const StudentView = {
       }
 
       let actionCell = '';
-      if (sub) {
-        // Already submitted — always show View regardless of grading status
+      // A real submission has a submitted_at timestamp or a score.
+      // A stub (isAlreadySubmitted fallback) has both as null — don't show View for those.
+      const hasRealSubmission = sub && (sub.submitted_at != null || sub.score != null || rawSub != null);
+      if (hasRealSubmission) {
+        // Already submitted — show View
         actionCell = `<td style="padding:14px 12px;text-align:center"><button class="btn btn-outline btn-xs" onclick="StudentController.viewResult(${a.id})">👁 View</button></td>`;
       } else if (canAnswer) {
         actionCell = `<td style="padding:14px 12px;text-align:center"><button class="btn btn-primary btn-xs" onclick="StudentController.openActivity(${a.id})">✏️ Start</button></td>`;
       } else if (isPastDue) {
-        actionCell = `<td style="padding:14px 12px;text-align:center"><span class="badge badge-danger" style="font-size:10px">No Late Submissions</span></td>`;
+        actionCell = `<td style="padding:14px 12px;text-align:center"><button class="btn btn-outline btn-xs" style="border-color:#c0392b;color:#c0392b" onclick="StudentController.openActivity(${a.id})">👁 View</button></td>`;
       } else {
         actionCell = `<td style="padding:14px 12px;text-align:center"><span style="color:var(--gray-400);font-size:12px">—</span></td>`;
       }
@@ -839,124 +844,95 @@ const StudentView = {
         </div>
       </div>
 
-      <style>
-        /* ── Responsive grades table ── */
-        .grades-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-        .grades-table-wrap table th { white-space: nowrap; }
-        /* Mobile: hide table, show cards instead */
-        @media (max-width: 600px) {
-          .grades-desktop-table { display: none !important; }
-          .grades-card-list { display: flex; flex-direction: column; gap: 10px; }
-        }
-        @media (min-width: 601px) {
-          .grades-card-list { display: none !important; }
-        }
-        .grade-card {
-          background: #fff;
-          border: 1px solid var(--gray-100, #f0e8e8);
-          border-radius: 10px;
-          padding: 14px 16px;
-          box-shadow: 0 1px 4px rgba(0,0,0,.05);
-        }
-        .grade-card-title {
-          font-weight: 700; font-size: 14px; color: var(--maroon, #7b1c1c);
-          margin-bottom: 2px;
-        }
-        .grade-card-meta {
-          font-size: 11px; color: var(--gray-400, #9ca3af); margin-bottom: 10px;
-        }
-        .grade-card-row {
-          display: flex; justify-content: space-between; align-items: center;
-          padding: 5px 0; border-bottom: 1px solid var(--gray-100, #f3f4f6);
-          font-size: 13px;
-        }
-        .grade-card-row:last-child { border-bottom: none; padding-bottom: 0; }
-        .grade-card-label { color: var(--gray-400, #9ca3af); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
-        .grade-card-value { font-weight: 600; color: #1f2937; }
-      </style>
+      ${(() => {
+        const isMobile = window.innerWidth <= 600;
 
-      <!-- Desktop table -->
-      <div class="card grades-desktop-table">
-        <div class="grades-table-wrap">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Activity</th>
-                <th>Subject</th>
-                <th style="text-align:center">Score</th>
-                <th style="text-align:center">%</th>
-                <th style="text-align:center">Grade</th>
-                <th>Status</th>
-                <th>Remarks</th>
-                <th>Submitted</th>
-              </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Mobile cards -->
-      <div class="grades-card-list">
-        ${graded.map(a => {
-          const sub        = a.submission;
-          const subjectName = subjectMap[a.subject_id] || '—';
-          const typeLabel  = ({ quiz:'Quiz', long_quiz:'Long Quiz', task_performance:'Task Performance',
-            exam:'Exam', lab_exercise:'Lab Exercise', assignment:'Assignment', other:'Other' })[a.activity_type] || a.activity_type || '—';
-          const term       = a.term ? `${a.term} Term` : '—';
-          const score      = sub.score;
-          const maxScore   = sub.max_score ?? a.max_score;
-          const pct        = score != null && maxScore ? Math.round(score / maxScore * 100) : null;
-          const phGrade    = pct !== null ? StudentView._toPhGrade(pct) : '—';
-          const pctColor   = pct === null ? 'var(--gray-400)' : pct >= 75 ? '#16a34a' : pct >= 60 ? '#d97706' : '#dc2626';
-          const phColor    = phGrade === '—' ? 'var(--gray-400)' : parseFloat(phGrade) <= 1.75 ? '#16a34a' : parseFloat(phGrade) <= 2.75 ? '#d97706' : '#dc2626';
-          const dateStr    = sub.submitted_at
-            ? new Date(sub.submitted_at).toLocaleDateString('en-PH', { month:'short', day:'numeric', year:'numeric' })
-            : '—';
-          const statusBadge = sub.is_graded || score != null
-            ? `<span class="badge badge-green" style="font-size:10px">✅ Graded</span>`
-            : `<span class="badge badge-gold" style="font-size:10px">⏳ Pending</span>`;
-          const pctBadge = pct !== null
-            ? `<span class="badge ${pct >= 75 ? 'badge-green' : pct >= 60 ? 'badge-gold' : 'badge-danger'}" style="font-size:11px">${pct}%</span>`
-            : `<span class="badge badge-gray" style="font-size:11px">Pending</span>`;
+        if (!isMobile) {
           return `
-            <div class="grade-card">
-              <div class="grade-card-title">${escHtml(a.title)}</div>
-              <div class="grade-card-meta">${escHtml(typeLabel)} · ${escHtml(term)}</div>
-              <div class="grade-card-row">
-                <span class="grade-card-label">Subject</span>
-                <span class="grade-card-value"><span class="badge badge-maroon" style="font-size:11px">${escHtml(subjectName)}</span></span>
-              </div>
-              <div class="grade-card-row">
-                <span class="grade-card-label">Score</span>
-                <span class="grade-card-value" style="color:var(--maroon)">
-                  ${score !== null && score !== undefined ? `${score}<span style="color:var(--gray-400)">/${maxScore ?? '?'}</span>` : `<span style="color:var(--gray-400)">—/${maxScore ?? '?'}</span>`}
-                </span>
-              </div>
-              <div class="grade-card-row">
-                <span class="grade-card-label">Percentage</span>
-                <span>${pctBadge}</span>
-              </div>
-              <div class="grade-card-row">
-                <span class="grade-card-label">Final Grade</span>
-                <span class="grade-card-value" style="font-size:16px;color:${phColor}">${escHtml(String(phGrade))}</span>
-              </div>
-              <div class="grade-card-row">
-                <span class="grade-card-label">Status</span>
-                <span>${statusBadge}</span>
-              </div>
-              ${sub.remarks && sub.remarks !== '—' ? `
-              <div class="grade-card-row">
-                <span class="grade-card-label">Remarks</span>
-                <span class="grade-card-value" style="font-size:12px;color:var(--gray-500)">${escHtml(sub.remarks)}</span>
-              </div>` : ''}
-              <div class="grade-card-row">
-                <span class="grade-card-label">Submitted</span>
-                <span class="grade-card-value" style="font-size:12px;color:var(--gray-500)">${escHtml(dateStr)}</span>
+            <div class="card">
+              <div class="table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th style="white-space:nowrap">Activity</th>
+                      <th style="white-space:nowrap">Subject</th>
+                      <th style="white-space:nowrap;text-align:center">Score</th>
+                      <th style="white-space:nowrap;text-align:center">%</th>
+                      <th style="white-space:nowrap;text-align:center">Grade</th>
+                      <th style="white-space:nowrap">Status</th>
+                      <th style="white-space:nowrap">Remarks</th>
+                      <th style="white-space:nowrap">Submitted</th>
+                    </tr>
+                  </thead>
+                  <tbody>${rows}</tbody>
+                </table>
               </div>
             </div>`;
-        }).join('')}
-      </div>
+        }
+
+        // Mobile card layout
+        return `<div style="display:flex;flex-direction:column;gap:10px">
+          ${graded.map(a => {
+            const sub         = a.submission;
+            const subjectName = subjectMap[a.subject_id] || '—';
+            const typeLabel   = ({ quiz:'Quiz', long_quiz:'Long Quiz', task_performance:'Task Performance',
+              exam:'Exam', lab_exercise:'Lab Exercise', assignment:'Assignment', other:'Other' })[a.activity_type] || a.activity_type || '—';
+            const term        = a.term ? `${a.term} Term` : '—';
+            const score       = sub.score;
+            const maxScore    = sub.max_score ?? a.max_score;
+            const pct         = score != null && maxScore ? Math.round(score / maxScore * 100) : null;
+            const phGrade     = pct !== null ? StudentView._toPhGrade(pct) : '—';
+            const phColor     = phGrade === '—' ? 'var(--gray-400)' : parseFloat(phGrade) <= 1.75 ? '#16a34a' : parseFloat(phGrade) <= 2.75 ? '#d97706' : '#dc2626';
+            const dateStr     = sub.submitted_at
+              ? new Date(sub.submitted_at).toLocaleDateString('en-PH', { month:'short', day:'numeric', year:'numeric' })
+              : '—';
+            const statusBadge = sub.is_graded || score != null
+              ? `<span class="badge badge-green" style="font-size:10px">✅ Graded</span>`
+              : `<span class="badge badge-gold" style="font-size:10px">⏳ Pending</span>`;
+            const pctBadge = pct !== null
+              ? `<span class="badge ${pct >= 75 ? 'badge-green' : pct >= 60 ? 'badge-gold' : 'badge-danger'}" style="font-size:11px">${pct}%</span>`
+              : `<span class="badge badge-gray" style="font-size:11px">Pending</span>`;
+            const rowStyle = 'display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #f3f4f6;font-size:13px';
+            const labelStyle = 'color:var(--gray-400);font-size:11px;text-transform:uppercase;letter-spacing:.4px';
+            return `
+              <div style="background:#fff;border:1px solid #f0e8e8;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.05)">
+                <div style="font-weight:700;font-size:14px;color:var(--maroon);margin-bottom:2px">${escHtml(a.title)}</div>
+                <div style="font-size:11px;color:var(--gray-400);margin-bottom:10px">${escHtml(typeLabel)} · ${escHtml(term)}</div>
+                <div style="${rowStyle}">
+                  <span style="${labelStyle}">Subject</span>
+                  <span><span class="badge badge-maroon" style="font-size:11px">${escHtml(subjectName)}</span></span>
+                </div>
+                <div style="${rowStyle}">
+                  <span style="${labelStyle}">Score</span>
+                  <span style="font-weight:600;color:var(--maroon)">
+                    ${score !== null && score !== undefined ? `${score}<span style="color:var(--gray-400)">/${maxScore ?? '?'}</span>` : `<span style="color:var(--gray-400)">—/${maxScore ?? '?'}</span>`}
+                  </span>
+                </div>
+                <div style="${rowStyle}">
+                  <span style="${labelStyle}">Percentage</span>
+                  <span>${pctBadge}</span>
+                </div>
+                <div style="${rowStyle}">
+                  <span style="${labelStyle}">Final Grade</span>
+                  <span style="font-weight:700;font-size:16px;color:${phColor}">${escHtml(String(phGrade))}</span>
+                </div>
+                <div style="${rowStyle}">
+                  <span style="${labelStyle}">Status</span>
+                  <span>${statusBadge}</span>
+                </div>
+                ${sub.remarks && sub.remarks !== '—' ? `
+                <div style="${rowStyle}">
+                  <span style="${labelStyle}">Remarks</span>
+                  <span style="font-size:12px;color:var(--gray-500);text-align:right;max-width:65%">${escHtml(sub.remarks)}</span>
+                </div>` : ''}
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px">
+                  <span style="${labelStyle}">Submitted</span>
+                  <span style="font-size:12px;color:var(--gray-500)">${escHtml(dateStr)}</span>
+                </div>
+              </div>`;
+          }).join('')}
+        </div>`;
+      })()}
 
       <!-- Grade scale legend -->
       <div style="margin-top:14px;padding:12px 16px;background:var(--gray-50);border-radius:var(--radius);border:1px solid var(--gray-100);font-size:11px;color:var(--gray-500)">
