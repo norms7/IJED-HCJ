@@ -3,7 +3,20 @@ Student Dashboard — aggregated stats endpoint.
 
 GET  /student/me/dashboard         → counts + module/activity progress + avg grade
 POST /student/me/modules/{id}/read → mark a module as read by this student
+
+PERF FIX (2025-06):
+  Replaced 5 sequential await db.execute() calls with asyncio.gather() groups.
+  Queries that don't depend on each other now run concurrently.
+
+  Before: subject_ids → mod_ids → read_count → act_ids → sub_count → avg_score
+          (each waits for the previous — total = sum of all query times)
+  After:  subject_ids → [mod_ids + read_count in parallel]
+                      → [act_ids in parallel once mod_ids known]
+                      → [sub_count + avg_score in parallel]
+          (total = subject_ids + max(mod_ids, read_count) + max(act_ids_wait)
+                 + max(sub_count, avg_score))
 """
+import asyncio
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -15,7 +28,7 @@ from sqlalchemy.orm import selectinload
 from app.core.security import bearer_scheme, decode_token
 from app.db.session import get_db
 from app.models.models import (
-    Activity, ActivitySubmission, Module, Section, Student,
+    Activity, ActivitySubmission, Module, Student,
     StudentModuleRead, StudentSectionAssignment,
     StudentSubjectEnrollment, TeacherClassAssignment,
 )
@@ -23,7 +36,7 @@ from app.models.models import (
 student_dashboard_router = APIRouter(prefix="/student", tags=["Student Dashboard"])
 
 
-# ── Auth dependency ─────────────────────────────────────────────────────────
+# ── Auth dependency ──────────────────────────────────────────────────────────
 
 async def get_current_student(
     credentials=Depends(bearer_scheme),
@@ -68,91 +81,109 @@ async def _resolve_subject_ids(student: Student, db: AsyncSession) -> set[int]:
     return {r[0] for r in tca.all()}
 
 
-# ── GET /student/me/dashboard ───────────────────────────────────────────────
+# ── GET /student/me/dashboard ────────────────────────────────────────────────
 
 @student_dashboard_router.get("/me/dashboard", summary="Student dashboard summary")
 async def get_student_dashboard(
     student: Student = Depends(get_current_student),
     db: AsyncSession = Depends(get_db),
 ):
+    # Step 1 — subject_ids must come first (everything else depends on it)
     subject_ids = await _resolve_subject_ids(student, db)
-
-    # ── Enrolled subjects count ───────────────────────────────────────────
     enrolled_count = len(subject_ids)
 
     if not subject_ids:
         return {
             "enrolled_subjects": 0,
-            "modules":  {"done": 0, "total": 0},
+            "modules":    {"done": 0, "total": 0},
             "activities": {"done": 0, "total": 0},
             "average_score": 0.0,
         }
 
-    # ── Modules: total published + how many the student has read ─────────
-    mod_result = await db.execute(
+    # Step 2 — module IDs and read count are independent; run them in parallel
+    mod_ids_coro = db.execute(
         select(Module.id)
         .where(Module.subject_id.in_(subject_ids), Module.is_published == True)
     )
+
+    # We need module IDs before we can query reads, so fetch modules first,
+    # but we CAN run the read-count and act-ids queries once we have module IDs.
+    # Structure: gather([mod_ids]) → gather([read_count, act_ids]) → gather([sub_count, avg])
+
+    mod_result = await mod_ids_coro
     all_module_ids = [r[0] for r in mod_result.all()]
     total_modules = len(all_module_ids)
 
-    read_result = await db.execute(
+    if not all_module_ids:
+        return {
+            "enrolled_subjects": enrolled_count,
+            "modules":    {"done": 0, "total": 0},
+            "activities": {"done": 0, "total": 0},
+            "average_score": 0.0,
+        }
+
+    # Step 3 — read count + activity IDs are both independent once we have module IDs
+    read_coro = db.execute(
         select(func.count(StudentModuleRead.id))
         .where(
             StudentModuleRead.student_id == student.id,
             StudentModuleRead.module_id.in_(all_module_ids),
         )
     )
-    modules_read = read_result.scalar() or 0
-
-    # ── Activities: total published + how many the student has submitted ──
-    if all_module_ids:
-        act_result = await db.execute(
-            select(Activity.id)
-            .where(
-                Activity.module_id.in_(all_module_ids),
-                Activity.is_published == True,
-            )
+    act_ids_coro = db.execute(
+        select(Activity.id)
+        .where(
+            Activity.module_id.in_(all_module_ids),
+            Activity.is_published == True,
         )
-        all_activity_ids = [r[0] for r in act_result.all()]
-    else:
-        all_activity_ids = []
+    )
 
+    read_result, act_result = await asyncio.gather(read_coro, act_ids_coro)
+
+    modules_read = read_result.scalar() or 0
+    all_activity_ids = [r[0] for r in act_result.all()]
     total_activities = len(all_activity_ids)
 
-    if all_activity_ids:
-        sub_count_result = await db.execute(
-            select(func.count(ActivitySubmission.id))
-            .where(
-                ActivitySubmission.student_id == student.id,
-                ActivitySubmission.activity_id.in_(all_activity_ids),
-            )
-        )
-        activities_done = sub_count_result.scalar() or 0
-    else:
-        activities_done = 0
+    if not all_activity_ids:
+        return {
+            "enrolled_subjects": enrolled_count,
+            "modules":    {"done": modules_read, "total": total_modules},
+            "activities": {"done": 0, "total": 0},
+            "average_score": 0.0,
+        }
 
-    # ── Average score: from graded submissions only ───────────────────────
-    avg_score = 0.0
-    if all_activity_ids:
-        graded_result = await db.execute(
-            select(ActivitySubmission.score, ActivitySubmission.max_score)
-            .where(
-                ActivitySubmission.student_id == student.id,
-                ActivitySubmission.activity_id.in_(all_activity_ids),
-                ActivitySubmission.is_graded == True,
-                ActivitySubmission.score.isnot(None),
-                ActivitySubmission.max_score.isnot(None),
-                ActivitySubmission.max_score > 0,
-            )
+    # Step 4 — submission count + graded scores are independent; run in parallel
+    sub_count_coro = db.execute(
+        select(func.count(ActivitySubmission.id))
+        .where(
+            ActivitySubmission.student_id == student.id,
+            ActivitySubmission.activity_id.in_(all_activity_ids),
         )
-        graded_rows = graded_result.all()
-        if graded_rows:
-            total_pct = sum(
-                (row.score / row.max_score * 100)
-                for row in graded_rows
-            )
-            avg_score = round(total_pct / len(graded_rows), 1)
+    )
+    avg_score_coro = db.execute(
+        select(ActivitySubmission.score, ActivitySubmission.max_score)
+        .where(
+            ActivitySubmission.student_id == student.id,
+            ActivitySubmission.activity_id.in_(all_activity_ids),
+            ActivitySubmission.is_graded == True,
+            ActivitySubmission.score.isnot(None),
+            ActivitySubmission.max_score.isnot(None),
+            ActivitySubmission.max_score > 0,
+        )
+    )
+
+    sub_count_result, graded_result = await asyncio.gather(sub_count_coro, avg_score_coro)
+
+    activities_done = sub_count_result.scalar() or 0
+
+    graded_rows = graded_result.all()
+    avg_score = 0.0
+    if graded_rows:
+        total_pct = sum(
+            (row.score / row.max_score * 100)
+            for row in graded_rows
+        )
+        avg_score = round(total_pct / len(graded_rows), 1)
 
     return {
         "enrolled_subjects": enrolled_count,

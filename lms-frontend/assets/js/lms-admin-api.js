@@ -22,6 +22,15 @@ class LMSAdminAPI {
       ? "http://localhost:8000"
       : "https://ijed-hcj-1.onrender.com";
     this.token = localStorage.getItem("lms_token") || null;
+
+    // ── PERF FIX: in-memory TTL cache ──────────────────────────────────────
+    // Eliminates repeat round-trips for stable data (subjects, classes,
+    // sections) on every navigation. Cache lives only for the current page
+    // session — refreshing the page clears it automatically.
+    // Key format:  "METHOD:path"  (e.g. "GET:/teacher/me/subjects")
+    // Value:       { data: <response>, ts: <Date.now()> }
+    // ─────────────────────────────────────────────────────────────────────
+    this._cache = new Map();
   }
 
   // ── Internal ──────────────────────────────────────────────────────────────
@@ -32,6 +41,37 @@ class LMSAdminAPI {
       h["Authorization"] = `Bearer ${this.token}`;
     }
     return h;
+  }
+
+  /**
+   * PERF FIX: Cached GET — returns cached response if within TTL, else fetches fresh.
+   * Use for stable read-heavy data: subjects, classes, sections.
+   * Never use for submissions, grades, or notifications (real-time data).
+   * @param {string} path    - API path, e.g. "/teacher/me/subjects"
+   * @param {number} [ttlMs] - Cache TTL in ms (default 60s)
+   */
+  async _cachedGet(path, ttlMs = 60_000) {
+    const key = `GET:${path}`;
+    const cached = this._cache.get(key);
+    if (cached && (Date.now() - cached.ts) < ttlMs) {
+      return cached.data;
+    }
+    const data = await this._request("GET", path);
+    this._cache.set(key, { data, ts: Date.now() });
+    return data;
+  }
+
+  /**
+   * Bust cached entries matching pathPattern.
+   * Call after mutations (create/update/delete) to avoid stale reads.
+   * Pass no args to clear everything (e.g. on logout).
+   * @param {string} [pathPattern]
+   */
+  clearCache(pathPattern = null) {
+    if (!pathPattern) { this._cache.clear(); return; }
+    for (const key of this._cache.keys()) {
+      if (key.includes(pathPattern)) this._cache.delete(key);
+    }
   }
 
   async _request(method, path, body = null) {
@@ -104,6 +144,7 @@ class LMSAdminAPI {
 
   logout() {
     this._clearToken();
+    this.clearCache(); // bust all cached data on logout
   }
 
   getCurrentUser() {
@@ -222,17 +263,19 @@ class LMSAdminAPI {
   // ── Classes ───────────────────────────────────────────────────────────────
 
   async getClasses() {
-    return this._request("GET", "/admin/classes");
+    return this._cachedGet("/admin/classes"); // PERF: cached 60s
   }
 
   async createClass({ name, grade_level, school_year }) {
-    return this._request("POST", "/admin/classes", { name, grade_level, school_year });
+    const result = await this._request("POST", "/admin/classes", { name, grade_level, school_year });
+    this.clearCache("/admin/classes"); // bust stale class list
+    return result;
   }
 
   // ── Sections ──────────────────────────────────────────────────────────────
 
   async getSections() {
-    return this._request("GET", "/admin/sections");
+    return this._cachedGet("/admin/sections"); // PERF: cached 60s
   }
 
   async getSection(id) {
@@ -240,25 +283,33 @@ class LMSAdminAPI {
   }
 
   async createSection({ name, class_id }) {
-    return this._request("POST", "/admin/sections", { name, class_id });
+    const result = await this._request("POST", "/admin/sections", { name, class_id });
+    this.clearCache("/admin/sections"); // bust stale section list
+    return result;
   }
 
   async updateSection(id, data) {
-    return this._request("PUT", `/admin/sections/${id}`, data);
+    const result = await this._request("PUT", `/admin/sections/${id}`, data);
+    this.clearCache("/admin/sections");
+    return result;
   }
 
   async deleteSection(id) {
-    return this._request("DELETE", `/admin/sections/${id}`);
+    const result = await this._request("DELETE", `/admin/sections/${id}`);
+    this.clearCache("/admin/sections");
+    return result;
   }
 
   // ── Subjects ──────────────────────────────────────────────────────────────
 
   async getSubjects() {
-    return this._request("GET", "/admin/subjects");
+    return this._cachedGet("/admin/subjects"); // PERF: cached 60s
   }
 
   async createSubject({ name, description }) {
-    return this._request("POST", "/admin/subjects", { name, description });
+    const result = await this._request("POST", "/admin/subjects", { name, description });
+    this.clearCache("/admin/subjects"); // bust stale subject list
+    return result;
   }
 
   // ── Modules ───────────────────────────────────────────────────────────────
@@ -311,7 +362,7 @@ class LMSAdminAPI {
   // ── Teacher Portal ────────────────────────────────────────────────────────
 
   async getMySubjects() {
-    return this._request("GET", "/teacher/me/subjects");
+    return this._cachedGet("/teacher/me/subjects"); // PERF: cached 60s — loaded on every teacher page
   }
 
   async getClassStudents(classId) {
@@ -465,7 +516,7 @@ class LMSAdminAPI {
   // ── Student Portal ────────────────────────────────────────────────────────
 
   async getStudentSubjects() {
-    return this._request("GET", "/student/me/subjects");
+    return this._cachedGet("/student/me/subjects"); // PERF: cached 60s
   }
 
   async getStudentModules(subject_id = null) {

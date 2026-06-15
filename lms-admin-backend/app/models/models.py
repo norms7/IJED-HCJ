@@ -1,6 +1,14 @@
 """
 SQLAlchemy ORM models for the LMS Admin module.
 All tables use Integer PKs for simplicity; swap to UUID if preferred.
+
+PERF FIX (2025-06): Added missing indexes on all high-traffic FK columns.
+  See ── PERF INDEX ── comments for each addition.
+  After applying this file, run:
+      alembic revision --autogenerate -m "add_perf_indexes"
+      alembic upgrade head
+  OR paste the SQL block at the bottom of models_indexes_patch.py directly
+  into the Supabase SQL Editor (uses CONCURRENTLY — no table lock).
 """
 from datetime import datetime, timezone, date as date_type
 from typing import Optional
@@ -34,9 +42,9 @@ class Role(Base):
 class User(Base):
     __tablename__ = "users"
     __table_args__ = (
-        Index("ix_users_email", "email"),
-        Index("ix_users_role_id", "role_id"),
-        Index("ix_users_is_active", "is_active"),
+        Index("ix_users_email",      "email"),
+        Index("ix_users_role_id",    "role_id"),
+        Index("ix_users_is_active",  "is_active"),
         Index("ix_users_created_at", "created_at"),
     )
 
@@ -139,6 +147,9 @@ class TeacherClassAssignment(Base):
     __tablename__ = "teacher_class_assignments"
     __table_args__ = (
         UniqueConstraint("teacher_id", "class_id", "subject_id", name="uq_teacher_class_subject"),
+        Index("ix_tca_teacher_id", "teacher_id"),  # ── PERF INDEX: teacher portal load
+        Index("ix_tca_subject_id", "subject_id"),  # ── PERF INDEX: subject enrollment queries
+        Index("ix_tca_class_id",   "class_id"),    # ── PERF INDEX: class-based lookups
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -182,6 +193,8 @@ class StudentSectionAssignment(Base):
     __tablename__ = "student_section_assignments"
     __table_args__ = (
         UniqueConstraint("student_id", "section_id", name="uq_student_section"),
+        Index("ix_ssa_student_id", "student_id"),  # ── PERF INDEX: loaded on every student auth
+        Index("ix_ssa_section_id", "section_id"),  # ── PERF INDEX: section roster queries
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -201,6 +214,8 @@ class StudentSubjectEnrollment(Base):
     __tablename__ = "student_subject_enrollments"
     __table_args__ = (
         UniqueConstraint("student_id", "subject_id", name="uq_student_subject"),
+        Index("ix_sse_student_id", "student_id"),  # ── PERF INDEX: loaded on every student request
+        Index("ix_sse_subject_id", "subject_id"),  # ── PERF INDEX: subject enrollment admin queries
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -218,6 +233,11 @@ class StudentSubjectEnrollment(Base):
 
 class Module(Base):
     __tablename__ = "modules"
+    __table_args__ = (
+        Index("ix_modules_subject_id",   "subject_id"),    # ── PERF INDEX: queried on EVERY student/teacher page
+        Index("ix_modules_is_published", "is_published"),  # ── PERF INDEX: always filtered is_published=True
+        Index("ix_modules_class_id",     "class_id"),      # ── PERF INDEX: teacher class-based module queries
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -244,9 +264,13 @@ class Module(Base):
 
 # ── activities ────────────────────────────────────────────────────────────────
 
-
 class Activity(Base):
     __tablename__ = "activities"
+    __table_args__ = (
+        Index("ix_activities_module_id",    "module_id"),     # ── PERF INDEX: activity list always filters by module
+        Index("ix_activities_subject_id",   "subject_id"),    # ── PERF INDEX: subject-filtered activity queries
+        Index("ix_activities_is_published", "is_published"),  # ── PERF INDEX: always filtered is_published=True
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -343,6 +367,9 @@ class ActivitySubmission(Base):
     __tablename__ = "activity_submissions"
     __table_args__ = (
         UniqueConstraint("activity_id", "student_id", name="uq_submission_activity_student"),
+        Index("ix_submissions_student_id",  "student_id"),   # ── PERF INDEX: student dashboard + activities page
+        Index("ix_submissions_activity_id", "activity_id"),  # ── PERF INDEX: teacher grading queries
+        Index("ix_submissions_is_graded",   "is_graded"),    # ── PERF INDEX: graded/ungraded filter
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -377,6 +404,7 @@ class ActivityAnswer(Base):
     submission: Mapped["ActivitySubmission"] = relationship("ActivitySubmission", back_populates="answers")
     question: Mapped["ActivityQuestion"] = relationship("ActivityQuestion", back_populates="answers")
 
+
 # ── StudentModuleRead ──────────────────────────────────────────────────────────
 
 class StudentModuleRead(Base):
@@ -384,6 +412,8 @@ class StudentModuleRead(Base):
     __tablename__ = "student_module_reads"
     __table_args__ = (
         UniqueConstraint("student_id", "module_id", name="uq_student_module_read"),
+        Index("ix_smr_student_id", "student_id"),  # ── PERF INDEX: dashboard read-count query
+        Index("ix_smr_module_id",  "module_id"),   # ── PERF INDEX: module-level read tracking
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
