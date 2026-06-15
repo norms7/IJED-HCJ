@@ -6,6 +6,30 @@
 
 "use strict";
 
+// ── PERF FIX helper ───────────────────────────────────────────────────────────
+// Normalises the submission field on an activity object returned by the list
+// endpoint. The backend returns `submission` as a full object (or null) since
+// the GET /student/me/activities endpoint now includes it inline.
+//
+// This function merges any legacy field names (my_submission, already_submitted)
+// so the view layer always reads from a single, consistent `submission` key.
+// ─────────────────────────────────────────────────────────────────────────────
+function _normaliseSubmission(activity) {
+  // Already has a proper submission object with data → nothing to do
+  if (activity.submission && activity.submission.submitted_at != null) {
+    return activity;
+  }
+
+  // Fallback: backend used the older `my_submission` field name
+  if (activity.my_submission && activity.my_submission.submitted_at != null) {
+    return { ...activity, submission: activity.my_submission };
+  }
+
+  // No submission data at all → ensure submission is null (not undefined)
+  return { ...activity, submission: activity.submission ?? null };
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const StudentController = {
   _currentActivity: null,
 
@@ -52,63 +76,30 @@ const StudentController = {
     const area = document.getElementById('content-area');
     area.innerHTML = StudentView.activitiesLoading();
 
+    // ── PERF FIX (2025-06): Eliminated N+1 getMyActivityResult() calls ──────
+    //
+    // BEFORE: After fetching the activity list, the controller filtered for
+    // "submitted but no score" activities and fired one extra
+    // api.getMyActivityResult(a.id) call per match — so 10 submitted
+    // activities = 11 total HTTP round-trips.
+    //
+    // AFTER: The backend's GET /student/me/activities already returns a full
+    // `submission` object inline (submitted_at, score, max_score, grade,
+    // is_graded, remarks) for every activity where the student has a row in
+    // activity_submissions. We just normalise that field and render directly.
+    // Zero extra calls, always.
+    //
+    // The _normaliseSubmission helper below handles all the legacy field name
+    // variants (submission / my_submission / already_submitted) so this is
+    // backwards-compatible with any cached/stale API responses.
+    // ─────────────────────────────────────────────────────────────────────────
+
     return api.getStudentActivities()
-      .then(async activities => {
-        // For activities that are submitted but have no score data in the list
-        // response (backend returns submission: null), fetch result in parallel
-        // to get the real score/grade for display in the table.
-        const submittedWithNoScore = activities.filter(a => {
-          // Exclude past-due activities that were never submitted —
-          // they have can_answer=false but no submission row, so /result returns 404.
-          const hasActualSubmission =
-            a.already_submitted === true ||
-            a.status === 'submitted'     ||
-            a.status === 'graded'        ||
-            (a.submission && (a.submission.submitted_at || a.submission.score != null)) ||
-            (a.my_submission && (a.my_submission.submitted_at || a.my_submission.score != null));
-          if (!hasActualSubmission) return false;
-          const hasScoreAlready =
-            (a.submission && a.submission.score != null) ||
-            (a.my_submission && a.my_submission.score != null);
-          return !hasScoreAlready;
-        });
-
-        if (submittedWithNoScore.length) {
-          const results = await Promise.allSettled(
-            submittedWithNoScore.map(a =>
-              api.getMyActivityResult(a.id)
-                .then(r => ({ id: a.id, result: r }))
-                .catch(() => ({ id: a.id, result: null }))
-            )
-          );
-
-          // Merge result data back onto the activity objects
-          const resultMap = {};
-          results.forEach(r => {
-            if (r.status === 'fulfilled' && r.value.result) {
-              resultMap[r.value.id] = r.value.result;
-            }
-          });
-
-          activities = activities.map(a => {
-            const res = resultMap[a.id];
-            if (!res) return a;
-            // Attach result as submission so the view can render score/grade
-            return {
-              ...a,
-              submission: {
-                submitted_at: res.submitted_at || null,
-                is_graded:    res.is_graded    || res.score != null,
-                score:        res.score        ?? null,
-                max_score:    res.max_score    ?? a.max_score ?? null,
-                grade:        res.grade        ?? null,
-                remarks:      res.remarks      ?? null,
-              },
-            };
-          });
-        }
-
-        area.innerHTML = StudentView.activities(activities);
+      .then(activities => {
+        // Normalise submission field across all naming variants the backend
+        // may have returned (current: `submission`, older: `my_submission`).
+        const normalised = activities.map(a => _normaliseSubmission(a));
+        area.innerHTML = StudentView.activities(normalised);
         DashboardController._attachSearch();
       })
       .catch(err => {
