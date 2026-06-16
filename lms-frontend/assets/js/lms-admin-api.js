@@ -664,6 +664,56 @@ class LMSAdminAPI {
     return this._request("DELETE", `/teacher/attendance/sessions/${sessionId}`);
   }
 
+  // ── Student Analytics ─────────────────────────────────────────────────────
+
+  /**
+   * Fetch the full descriptive analytics bundle (one round-trip for all charts).
+   * @param {number|null} subjectId  - optional subject filter
+   * @returns {Promise<{grade_progress, attendance_calendar, score_vs_avg, module_progress, subject_radar}>}
+   */
+  async getDescriptiveAnalytics(subjectId = null) {
+    const q = subjectId ? `?subject_id=${subjectId}` : '';
+    return this._cachedGet(`/student/me/analytics/descriptive${q}`, 120_000);
+  }
+
+  /**
+   * Fetch the full Bayesian analytics bundle.
+   * @param {number}      targetGrade - target grade threshold for improvement prob (default 90)
+   * @param {number|null} subjectId   - optional subject filter
+   */
+  async getBayesianAnalytics(targetGrade = 90, subjectId = null) {
+    const params = new URLSearchParams({ target_grade: targetGrade });
+    if (subjectId) params.append('subject_id', subjectId);
+    return this._cachedGet(`/student/me/analytics/bayesian?${params}`, 120_000);
+  }
+
+  /**
+   * Fetch only the predicted final grade (lighter call, e.g. for dashboard widget).
+   * @param {number|null} subjectId
+   */
+  async getPredictedGrade(subjectId = null) {
+    const q = subjectId ? `?subject_id=${subjectId}` : '';
+    return this._cachedGet(`/student/me/analytics/predicted-grade${q}`, 120_000);
+  }
+
+  /**
+   * Fetch improvement probability for a given target grade.
+   * @param {number}      targetGrade
+   * @param {number|null} subjectId
+   */
+  async getImprovementProbability(targetGrade = 90, subjectId = null) {
+    const params = new URLSearchParams({ target_grade: targetGrade });
+    if (subjectId) params.append('subject_id', subjectId);
+    return this._request('GET', `/student/me/analytics/improvement-probability?${params}`);
+  }
+
+  /**
+   * Fetch the Bayesian risk assessment.
+   */
+  async getRiskAssessment() {
+    return this._cachedGet('/student/me/analytics/risk-assessment', 120_000);
+  }
+
 }
 
 const api = new LMSAdminAPI();
