@@ -1,6 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
 
@@ -12,19 +11,21 @@ _is_remote = (
 )
 
 if _is_remote:
-    # NullPool — required for Transaction mode pooler (pgbouncer, port 6543).
-    # Render uses IPv6 by default; Transaction pooler supports IPv6 but
-    # Session pooler does not — so we stay on Transaction + NullPool.
-    # statement_cache_size=0 and prepared_statement_cache_size=0 are required
-    # for pgbouncer Transaction mode (prepared statements can't persist).
+    # Direct connection to Supabase (db.xxxx.supabase.co:5432)
+    # Works on Render IPv6 free tier — no pgbouncer in the way.
+    # Allows persistent pool: no new TCP handshake per request.
+    # pool_size=2 — safe for Supabase free tier (15 connection limit).
+    # pool_recycle=300 — recycle before Supabase's ~10min idle timeout.
     engine = create_async_engine(
         _db_url,
         echo=False,
-        poolclass=NullPool,
+        pool_size=2,
+        max_overflow=1,
+        pool_pre_ping=True,
+        pool_recycle=300,
+        pool_timeout=30,
         connect_args={
             "ssl": "require",
-            "statement_cache_size": 0,
-            "prepared_statement_cache_size": 0,
         },
     )
 else:
