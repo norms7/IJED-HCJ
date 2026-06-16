@@ -3,7 +3,6 @@ from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import settings
 
-# Detect remote (Render / Supabase) vs local
 _db_url = settings.DATABASE_URL
 _is_remote = (
     "supabase.com" in _db_url
@@ -11,42 +10,21 @@ _is_remote = (
     or "amazonaws.com" in _db_url
 )
 
-# ── Connection pool strategy ───────────────────────────────────────────────────
-#
-# PERF FIX (2025-06): Replaced NullPool with a small persistent pool.
-#
-# NullPool was safe for preventing EMAXCONNSESSION but kills performance:
-# every single API call paid a full TCP + SSL + Postgres auth handshake to
-# Supabase (~150–300 ms) before any SQL ran.
-#
-# Requirements to use a persistent pool with Supabase:
-#   1. Use Session-mode pooler  → Supabase dashboard → Database → Connection
-#      pooling → Mode = Session  (port 5432, NOT 6543 Transaction mode)
-#   2. Remove ?pgbouncer=true from DATABASE_URL if it's there
-#   3. Remove statement_cache_size=0 — those are only needed for Transaction mode
-#
-# pool_size=2 + max_overflow=1 → max 3 connections held by this Render instance.
-# Supabase free tier cap is 15–20; we're well within that.
-# pool_recycle=300 → recycle connections every 5 min to avoid Supabase's
-# ~10-min idle timeout dropping them mid-session.
-# pool_pre_ping=True → test stale connections before use (safe for any mode).
-# ──────────────────────────────────────────────────────────────────────────────
-
 if _is_remote:
+    # pool_size=1 per worker × 2 workers = 2 total connections max.
+    # Supabase free tier is stable with this. max_overflow=1 allows 1 burst
+    # connection per worker (4 total absolute max) but only briefly.
+    # pool_timeout=60 gives connections more time to establish on cold start.
     engine = create_async_engine(
         _db_url,
         echo=False,
-        pool_size=2,          # 2 persistent connections on Render free tier
-        max_overflow=1,       # 1 extra connection allowed during burst traffic
-        pool_pre_ping=True,   # recycle dead connections silently
-        pool_recycle=300,     # recycle every 5 min (before Supabase's idle timeout)
+        pool_size=1,
+        max_overflow=1,
+        pool_pre_ping=True,
+        pool_recycle=300,
+        pool_timeout=60,      # wait up to 60s for a connection on cold start
         connect_args={
             "ssl": "require",
-            # statement_cache_size and prepared_statement_cache_size are ONLY
-            # needed for PgBouncer Transaction mode. Remove them for Session mode.
-            # If you ever switch back to Transaction mode, re-add:
-            #   "statement_cache_size": 0,
-            #   "prepared_statement_cache_size": 0,
         },
     )
 else:
