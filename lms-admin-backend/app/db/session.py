@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
 
@@ -11,20 +12,19 @@ _is_remote = (
 )
 
 if _is_remote:
-    # pool_size=1 per worker × 2 workers = 2 total connections max.
-    # Supabase free tier is stable with this. max_overflow=1 allows 1 burst
-    # connection per worker (4 total absolute max) but only briefly.
-    # pool_timeout=60 gives connections more time to establish on cold start.
+    # NullPool — required for Transaction mode pooler (pgbouncer, port 6543).
+    # Render uses IPv6 by default; Transaction pooler supports IPv6 but
+    # Session pooler does not — so we stay on Transaction + NullPool.
+    # statement_cache_size=0 and prepared_statement_cache_size=0 are required
+    # for pgbouncer Transaction mode (prepared statements can't persist).
     engine = create_async_engine(
         _db_url,
         echo=False,
-        pool_size=1,
-        max_overflow=1,
-        pool_pre_ping=True,
-        pool_recycle=300,
-        pool_timeout=60,      # wait up to 60s for a connection on cold start
+        poolclass=NullPool,
         connect_args={
             "ssl": "require",
+            "statement_cache_size": 0,
+            "prepared_statement_cache_size": 0,
         },
     )
 else:
