@@ -74,14 +74,32 @@ BAYESIAN_TTL_SECONDS    = 600    # 10 minutes
 
 
 async def _cache_get(student_id: int, cache_key: str, ttl_seconds: int, db: AsyncSession) -> Optional[dict]:
-    """Return cached payload if present and within TTL, else None."""
-    result = await db.execute(
-        select(AnalyticsCache).where(
-            AnalyticsCache.student_id == student_id,
-            AnalyticsCache.cache_key == cache_key,
+    """
+    Return cached payload if present and within TTL, else None.
+
+    BUG FIX (2025-06): This previously had no error handling around the
+    db.execute() call. If the analytics_cache table is missing, locked, or
+    otherwise unreachable, the exception propagated all the way up through
+    cache_or_compute() and crashed the entire analytics request with a 500
+    — even though the actual fix is trivial: just skip the cache and
+    compute fresh, exactly like a cache miss. A broken cache should never
+    be able to take down the underlying feature it's supposed to speed up.
+    """
+    try:
+        result = await db.execute(
+            select(AnalyticsCache).where(
+                AnalyticsCache.student_id == student_id,
+                AnalyticsCache.cache_key == cache_key,
+            )
         )
-    )
-    row = result.scalar_one_or_none()
+        row = result.scalar_one_or_none()
+    except Exception:
+        # Cache table missing / unreachable / any DB-level issue — roll back
+        # the failed statement so this session can still be used for the
+        # subsequent fresh computation, and treat this as a cache miss.
+        await db.rollback()
+        return None
+
     if not row:
         return None
 
