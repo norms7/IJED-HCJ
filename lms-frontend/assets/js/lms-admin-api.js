@@ -247,7 +247,10 @@ class LMSAdminAPI {
   // ── Dashboard ─────────────────────────────────────────────────────────────
 
   async getDashboardStats() {
-    return this._request("GET", "/admin/dashboard/stats");
+    // PERF: cached 20s — short TTL since this reflects aggregate counts that
+    // can change as admins create/edit records elsewhere. Self-expires fast
+    // enough that we don't need manual invalidation wiring on every mutation.
+    return this._cachedGet("/admin/dashboard/stats", 20_000);
   }
 
   // ── Users ─────────────────────────────────────────────────────────────────
@@ -281,7 +284,7 @@ class LMSAdminAPI {
   // ── Teachers ──────────────────────────────────────────────────────────────
 
   async getTeachers() {
-    return this._request("GET", "/admin/teachers");
+    return this._cachedGet("/admin/teachers", 60_000); // PERF: cached 60s
   }
 
   async getTeacher(id) {
@@ -289,15 +292,19 @@ class LMSAdminAPI {
   }
 
   async createTeacherProfile({ user_id, employee_id, specialization, contact_number }) {
-    return this._request("POST", "/admin/teachers", {
+    const result = await this._request("POST", "/admin/teachers", {
       user_id, employee_id, specialization, contact_number,
     });
+    this.clearCache("/admin/teachers"); // bust stale teacher list
+    return result;
   }
 
   async assignTeacherToClass({ teacher_id, class_id, subject_id, schedule }) {
-    return this._request("POST", "/admin/teachers/assign-class", {
+    const result = await this._request("POST", "/admin/teachers/assign-class", {
       teacher_id, class_id, subject_id, schedule,
     });
+    this.clearCache("/admin/teachers");
+    return result;
   }
 
   async getTeacherByUserId(userId) {
@@ -305,21 +312,27 @@ class LMSAdminAPI {
   }
 
   async updateTeacherProfile(teacherId, data) {
-    return this._request("PUT", `/admin/teachers/${teacherId}`, data);
+    const result = await this._request("PUT", `/admin/teachers/${teacherId}`, data);
+    this.clearCache("/admin/teachers");
+    return result;
   }
 
   async updateTeacherAssignment(assignmentId, data) {
-    return this._request("PUT", `/admin/teachers/assignments/${assignmentId}`, data);
+    const result = await this._request("PUT", `/admin/teachers/assignments/${assignmentId}`, data);
+    this.clearCache("/admin/teachers");
+    return result;
   }
 
   async deleteTeacherAssignment(assignmentId) {
-    return this._request("DELETE", `/admin/teachers/assignments/${assignmentId}`);
+    const result = await this._request("DELETE", `/admin/teachers/assignments/${assignmentId}`);
+    this.clearCache("/admin/teachers");
+    return result;
   }
 
   // ── Students ──────────────────────────────────────────────────────────────
 
   async getStudents() {
-    return this._request("GET", "/admin/students");
+    return this._cachedGet("/admin/students", 60_000); // PERF: cached 60s
   }
 
   async getStudent(id) {
@@ -327,17 +340,21 @@ class LMSAdminAPI {
   }
 
   async createStudentProfile({ user_id, student_number, contact_number, guardian_name, guardian_contact }) {
-    return this._request("POST", "/admin/students", {
+    const result = await this._request("POST", "/admin/students", {
       user_id, student_number, contact_number, guardian_name, guardian_contact,
     });
+    this.clearCache("/admin/students"); // bust stale student list
+    return result;
   }
 
   async getStudentsBySection(sectionId) {
-    return this._request("GET", `/admin/students/by-section/${sectionId}`);
+    return this._cachedGet(`/admin/students/by-section/${sectionId}`, 60_000); // PERF: cached 60s
   }
 
   async assignStudentToSection({ student_id, section_id }) {
-    return this._request("POST", "/admin/students/assign-section", { student_id, section_id });
+    const result = await this._request("POST", "/admin/students/assign-section", { student_id, section_id });
+    this.clearCache("/admin/students"); // covers both /admin/students and by-section listings
+    return result;
   }
 
   async getStudentSubjectEnrollments(studentId) {
@@ -345,11 +362,15 @@ class LMSAdminAPI {
   }
 
   async enrollStudentSubjects(studentId, subjectIds) {
-    return this._request("POST", `/admin/students/${studentId}/subjects`, { subject_ids: subjectIds });
+    const result = await this._request("POST", `/admin/students/${studentId}/subjects`, { subject_ids: subjectIds });
+    this.clearCache("/admin/students");
+    return result;
   }
 
   async unenrollStudentSubject(studentId, subjectId) {
-    return this._request("DELETE", `/admin/students/${studentId}/subjects/${subjectId}`);
+    const result = await this._request("DELETE", `/admin/students/${studentId}/subjects/${subjectId}`);
+    this.clearCache("/admin/students");
+    return result;
   }
 
   // ── Classes ───────────────────────────────────────────────────────────────
@@ -410,7 +431,7 @@ class LMSAdminAPI {
     const q = new URLSearchParams();
     if (class_id)   q.append("class_id", class_id);
     if (subject_id) q.append("subject_id", subject_id);
-    return this._request("GET", `/admin/modules?${q}`);
+    return this._cachedGet(`/admin/modules?${q}`, 60_000); // PERF: cached 60s
   }
 
   async getModule(id) {
@@ -418,37 +439,49 @@ class LMSAdminAPI {
   }
 
   async createModule({ title, description, class_id, subject_id, order, is_published }) {
-    return this._request("POST", "/admin/modules", {
+    const result = await this._request("POST", "/admin/modules", {
       title, description, class_id, subject_id, order, is_published,
     });
+    this.clearCache("/admin/modules"); // bust stale module lists (all filter variants)
+    return result;
   }
 
   async updateModule(id, fields) {
-    return this._request("PUT", `/admin/modules/${id}`, fields);
+    const result = await this._request("PUT", `/admin/modules/${id}`, fields);
+    this.clearCache("/admin/modules");
+    return result;
   }
 
   async deleteModule(id) {
-    return this._request("DELETE", `/admin/modules/${id}`);
+    const result = await this._request("DELETE", `/admin/modules/${id}`);
+    this.clearCache("/admin/modules");
+    return result;
   }
 
   // ── Activities (admin) ────────────────────────────────────────────────────
 
   async getActivities(module_id) {
-    return this._request("GET", `/admin/activities?module_id=${module_id}`);
+    return this._cachedGet(`/admin/activities?module_id=${module_id}`, 60_000); // PERF: cached 60s
   }
 
   async createActivity({ title, description, activity_type, module_id, max_score, due_date, is_published }) {
-    return this._request("POST", "/admin/activities", {
+    const result = await this._request("POST", "/admin/activities", {
       title, description, activity_type, module_id, max_score, due_date, is_published,
     });
+    this.clearCache("/admin/activities"); // bust stale activity lists
+    return result;
   }
 
   async updateActivity(id, fields) {
-    return this._request("PUT", `/admin/activities/${id}`, fields);
+    const result = await this._request("PUT", `/admin/activities/${id}`, fields);
+    this.clearCache("/admin/activities");
+    return result;
   }
 
   async deleteActivity(id) {
-    return this._request("DELETE", `/admin/activities/${id}`);
+    const result = await this._request("DELETE", `/admin/activities/${id}`);
+    this.clearCache("/admin/activities");
+    return result;
   }
 
   // ── Teacher Portal ────────────────────────────────────────────────────────
@@ -458,11 +491,11 @@ class LMSAdminAPI {
   }
 
   async getClassStudents(classId) {
-    return this._request("GET", `/teacher/me/class/${classId}/students`);
+    return this._cachedGet(`/teacher/me/class/${classId}/students`, 60_000); // PERF: cached 60s
   }
 
   async getClassModuleReads(classId) {
-    return this._request("GET", `/teacher/me/class/${classId}/module-reads`);
+    return this._cachedGet(`/teacher/me/class/${classId}/module-reads`, 30_000); // PERF: cached 30s — reflects live student activity, shorter TTL
   }
 
   async uploadSubjectMaterial(subjectId, formData) {
@@ -480,11 +513,13 @@ class LMSAdminAPI {
 
   async getMyModules(subject_id = null) {
     const q = subject_id ? `?subject_id=${subject_id}` : "";
-    return this._request("GET", `/teacher/me/modules${q}`);
+    return this._cachedGet(`/teacher/me/modules${q}`, 60_000); // PERF: cached 60s
   }
 
   async deleteMyModule(id) {
-    return this._request("DELETE", `/teacher/me/modules/${id}`);
+    const result = await this._request("DELETE", `/teacher/me/modules/${id}`);
+    this.clearCache("/teacher/me/modules"); // bust stale module lists
+    return result;
   }
 
   async uploadModuleFile(file) {
@@ -521,7 +556,9 @@ class LMSAdminAPI {
       const err = await res.json().catch(() => ({ detail: res.statusText }));
       throw new Error(err.detail || `HTTP ${res.status}`);
     }
-    return res.json();
+    const result = await res.json();
+    this.clearCache("/teacher/me/modules"); // bust stale module lists
+    return result;
   }
 
   // ── Teacher Activities ────────────────────────────────────────────────────
@@ -541,11 +578,14 @@ class LMSAdminAPI {
    * @param {Array}  payload.questions      - array of question objects
    */
   async createTeacherActivity(payload) {
-    return this._request("POST", "/teacher/me/activities", payload);
+    const result = await this._request("POST", "/teacher/me/activities", payload);
+    this.clearCache("/teacher/me/activities"); // bust stale activity lists
+    return result;
   }
 
   /**
    * List activities created by the logged-in teacher.
+   * PERF: cached 60s — read-heavy, rarely changes second-to-second.
    * @param {Object} [filters]
    * @param {number} [filters.module_id]
    * @param {number} [filters.subject_id]
@@ -555,7 +595,7 @@ class LMSAdminAPI {
     if (module_id)  q.append("module_id", module_id);
     if (subject_id) q.append("subject_id", subject_id);
     const qs = q.toString() ? `?${q.toString()}` : "";
-    return this._request("GET", `/teacher/me/activities${qs}`);
+    return this._cachedGet(`/teacher/me/activities${qs}`, 60_000);
   }
 
   /**
@@ -563,7 +603,7 @@ class LMSAdminAPI {
    * @param {number} id
    */
   async getTeacherActivity(id) {
-    return this._request("GET", `/teacher/me/activities/${id}`);
+    return this._cachedGet(`/teacher/me/activities/${id}`, 60_000); // PERF: cached 60s
   }
 
   /**
@@ -572,7 +612,9 @@ class LMSAdminAPI {
    * @param {Object} payload - partial ActivityUpdateV2
    */
   async updateTeacherActivity(id, payload) {
-    return this._request("PUT", `/teacher/me/activities/${id}`, payload);
+    const result = await this._request("PUT", `/teacher/me/activities/${id}`, payload);
+    this.clearCache("/teacher/me/activities"); // covers both list and single-item cache entries
+    return result;
   }
 
   /**
@@ -580,11 +622,15 @@ class LMSAdminAPI {
    * @param {number} id
    */
   async deleteTeacherActivity(id) {
-    return this._request("DELETE", `/teacher/me/activities/${id}`);
+    const result = await this._request("DELETE", `/teacher/me/activities/${id}`);
+    this.clearCache("/teacher/me/activities");
+    return result;
   }
 
   /**
    * Get all student submissions for one activity.
+   * PERF: intentionally NOT cached — this is an active grading workflow
+   * where a teacher needs to see new submissions arrive in real time.
    * @param {number} activityId
    */
   async getActivitySubmissions(activityId) {
@@ -593,6 +639,16 @@ class LMSAdminAPI {
 
   /**
    * Manually grade a submission (for freeform / hybrid / assignment activities).
+   *
+   * Note on caching boundaries: this happens in the teacher's browser, but
+   * the resulting grade is read by the STUDENT in their own browser session
+   * via getStudentActivities() / getStudentDashboardStats(). Client-side
+   * cache invalidation (this.clearCache()) only affects the browser it runs
+   * in — it has no way to reach into a different student's browser tab.
+   * That's fine here: those two caches are short-lived (30s and 20s), so
+   * the student sees the new grade within that window automatically, no
+   * cross-session invalidation needed.
+   *
    * @param {number} activityId
    * @param {number} submissionId
    * @param {{ score: number, grade?: string, remarks?: string }} gradeData
@@ -613,21 +669,26 @@ class LMSAdminAPI {
 
   async getStudentModules(subject_id = null) {
     const q = subject_id ? `?subject_id=${subject_id}` : "";
-    return this._request("GET", `/student/me/modules${q}`);
+    return this._cachedGet(`/student/me/modules${q}`, 60_000); // PERF: cached 60s
   }
 
   /**
    * Get published activities for the student's enrolled subjects.
    * Correct answers are never included in the response.
+   * PERF: cached 30s — shorter TTL than modules since submission status
+   * (graded/ungraded, score) can change here whenever a teacher grades
+   * something, and we want that to surface reasonably quickly.
    * @param {number} [subject_id] - optional filter
    */
   async getStudentActivities(subject_id = null) {
     const q = subject_id ? `?subject_id=${subject_id}` : "";
-    return this._request("GET", `/student/me/activities${q}`);
+    return this._cachedGet(`/student/me/activities${q}`, 30_000);
   }
 
   /**
    * Get one activity with questions for answering (no correct answers exposed).
+   * PERF: intentionally NOT cached — an in-progress answer session should
+   * always reflect the true current state of the activity.
    * @param {number} id
    */
   async getStudentActivity(id) {
@@ -642,11 +703,18 @@ class LMSAdminAPI {
    * @param {Array<{ question_id: number, answer_value: string }>} answers
    */
   async submitActivityAnswers(activityId, answers) {
-    return this._request("POST", `/student/me/activities/${activityId}/submit`, { answers });
+    const result = await this._request("POST", `/student/me/activities/${activityId}/submit`, { answers });
+    // Submission changes activity status (submitted/graded) and dashboard
+    // completion counts — bust both so the next view reflects reality.
+    this.clearCache("/student/me/activities");
+    this.clearCache("/student/me/dashboard");
+    return result;
   }
 
   /**
    * Get the student's own submission result for an activity.
+   * PERF: intentionally NOT cached — checked right after submission, needs
+   * to reflect the true current grading state.
    * @param {number} activityId
    */
   async getMyActivityResult(activityId) {
@@ -655,10 +723,13 @@ class LMSAdminAPI {
 
   /**
    * Get aggregated student dashboard stats.
+   * PERF: cached 20s — short TTL since this reflects live progress (module
+   * reads, submissions) that the student expects to update soon after they
+   * take an action, but doesn't need to be querie­d on every single render.
    * Returns: { enrolled_subjects, modules: {done, total}, activities: {done, total}, average_score }
    */
   async getStudentDashboardStats() {
-    return this._request("GET", "/student/me/dashboard");
+    return this._cachedGet("/student/me/dashboard", 20_000);
   }
 
   /**
@@ -667,15 +738,20 @@ class LMSAdminAPI {
    * @param {number} moduleId
    */
   async markModuleRead(moduleId) {
-    return this._request("POST", `/student/me/modules/${moduleId}/read`);
+    const result = await this._request("POST", `/student/me/modules/${moduleId}/read`);
+    // Marking a module read changes the dashboard's module completion count.
+    this.clearCache("/student/me/dashboard");
+    return result;
   }
 
   /**
    * Get the student's own attendance summary, grouped by subject and term.
+   * PERF: cached 30s — attendance is marked by teachers in batches, not
+   * continuously, so a short cache window is safe here.
    * Returns an array of { subject_id, subject_name, class_name, terms[], totals }.
    */
   async getMyAttendance() {
-    return this._request("GET", "/student/me/attendance");
+    return this._cachedGet("/student/me/attendance", 30_000);
   }
 
   // ── Legacy / utility ──────────────────────────────────────────────────────
