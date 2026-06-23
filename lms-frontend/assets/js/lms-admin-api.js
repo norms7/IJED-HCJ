@@ -99,6 +99,98 @@ class LMSAdminAPI {
     }
   }
 
+  /**
+   * PERF FIX: Timeout + retry aware GET, for slow/heavy endpoints
+   * (Bayesian analytics, peer comparisons) where a hung connection should
+   * fail fast with a clear message instead of leaving the user staring at
+   * a blank screen until the browser's own (very long) default timeout.
+   *
+   * Behaviour:
+   *   - Aborts the request after `timeoutMs` (default 25s — Render free tier
+   *     cold starts can take 15-30s, so this must be longer than that).
+   *   - On timeout or network failure, retries once after a short delay.
+   *   - On second failure, throws a clear "still warming up" style message
+   *     instead of the raw "Failed to fetch" browser error.
+   *
+   * @param {string} path
+   * @param {number} [timeoutMs] - abort after this many ms (default 25000)
+   * @param {number} [retries]   - number of retry attempts after first failure (default 1)
+   */
+  async _requestWithTimeout(path, timeoutMs = 25_000, retries = 1) {
+    let lastError;
+
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+      if (typeof Loader !== 'undefined') Loader.start();
+
+      try {
+        const res = await fetch(`${this.baseURL}${path}`, {
+          method: 'GET',
+          headers: this._headers(),
+          signal: controller.signal,
+        });
+        clearTimeout(timer);
+
+        if (res.status === 401) {
+          this._clearToken();
+          throw new Error("Session expired. Please log in again.");
+        }
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ detail: res.statusText }));
+          throw new Error(err.detail || `HTTP ${res.status}`);
+        }
+        return await res.json();
+
+      } catch (err) {
+        clearTimeout(timer);
+        lastError = err;
+
+        const isAbort = err.name === 'AbortError';
+        const isLastAttempt = attempt === retries;
+
+        if (isLastAttempt) {
+          if (isAbort) {
+            throw new Error(
+              "This is taking longer than expected. The server may be starting up " +
+              "after being idle — please try again in a moment."
+            );
+          }
+          throw err;
+        }
+
+        // Brief pause before retrying (gives a cold-starting backend a
+        // moment to finish waking up).
+        await new Promise(r => setTimeout(r, 1500));
+
+      } finally {
+        if (typeof Loader !== 'undefined') Loader.done();
+      }
+    }
+
+    throw lastError;
+  }
+
+  /**
+   * Cached GET with timeout/retry — combines _cachedGet's TTL caching with
+   * _requestWithTimeout's resilience. Use for expensive analytics endpoints.
+   *
+   * @param {string} path
+   * @param {number} [ttlMs]     - cache TTL in ms
+   * @param {number} [timeoutMs] - abort after this many ms
+   */
+  async _cachedGetWithTimeout(path, ttlMs = 120_000, timeoutMs = 25_000) {
+    const key = `GET:${path}`;
+    const cached = this._cache.get(key);
+    if (cached && (Date.now() - cached.ts) < ttlMs) {
+      return cached.data;
+    }
+    const data = await this._requestWithTimeout(path, timeoutMs, 1);
+    this._cache.set(key, { data, ts: Date.now() });
+    return data;
+  }
+
   _saveToken(token) {
     this.token = token;
     localStorage.setItem("lms_token", token);
@@ -668,23 +760,30 @@ class LMSAdminAPI {
 
   /**
    * Fetch the full descriptive analytics bundle (one round-trip for all charts).
+   * PERF FIX: now uses timeout+retry aware caching — backend caches the
+   * underlying computation for 5 min, this caches the HTTP response for
+   * 2 min on top, and a hung request fails gracefully after 25s with one
+   * retry instead of hanging until the browser's default timeout.
    * @param {number|null} subjectId  - optional subject filter
    * @returns {Promise<{grade_progress, attendance_calendar, score_vs_avg, module_progress, subject_radar}>}
    */
   async getDescriptiveAnalytics(subjectId = null) {
     const q = subjectId ? `?subject_id=${subjectId}` : '';
-    return this._cachedGet(`/student/me/analytics/descriptive${q}`, 120_000);
+    return this._cachedGetWithTimeout(`/student/me/analytics/descriptive${q}`, 120_000, 25_000);
   }
 
   /**
    * Fetch the full Bayesian analytics bundle.
+   * PERF FIX: timeout+retry aware — this bundle includes students_like_you,
+   * the most expensive computation in the analytics suite, so it gets the
+   * longest timeout window (25s) plus one automatic retry.
    * @param {number}      targetGrade - target grade threshold for improvement prob (default 90)
    * @param {number|null} subjectId   - optional subject filter
    */
   async getBayesianAnalytics(targetGrade = 90, subjectId = null) {
     const params = new URLSearchParams({ target_grade: targetGrade });
     if (subjectId) params.append('subject_id', subjectId);
-    return this._cachedGet(`/student/me/analytics/bayesian?${params}`, 120_000);
+    return this._cachedGetWithTimeout(`/student/me/analytics/bayesian?${params}`, 120_000, 25_000);
   }
 
   /**
@@ -693,7 +792,7 @@ class LMSAdminAPI {
    */
   async getPredictedGrade(subjectId = null) {
     const q = subjectId ? `?subject_id=${subjectId}` : '';
-    return this._cachedGet(`/student/me/analytics/predicted-grade${q}`, 120_000);
+    return this._cachedGetWithTimeout(`/student/me/analytics/predicted-grade${q}`, 120_000, 20_000);
   }
 
   /**
@@ -704,14 +803,14 @@ class LMSAdminAPI {
   async getImprovementProbability(targetGrade = 90, subjectId = null) {
     const params = new URLSearchParams({ target_grade: targetGrade });
     if (subjectId) params.append('subject_id', subjectId);
-    return this._request('GET', `/student/me/analytics/improvement-probability?${params}`);
+    return this._requestWithTimeout(`/student/me/analytics/improvement-probability?${params}`, 20_000, 1);
   }
 
   /**
    * Fetch the Bayesian risk assessment.
    */
   async getRiskAssessment() {
-    return this._cachedGet('/student/me/analytics/risk-assessment', 120_000);
+    return this._cachedGetWithTimeout('/student/me/analytics/risk-assessment', 120_000, 20_000);
   }
 
 }

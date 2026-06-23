@@ -76,22 +76,27 @@ async def get_descriptive_analytics(
       score_vs_avg         – bar chart data
       module_progress      – progress bars data
       subject_radar        – radar chart data
-    """
-    import asyncio
 
-    (
-        grade_progress,
-        attendance_calendar,
-        score_vs_avg,
-        module_progress,
-        subject_radar,
-    ) = await asyncio.gather(
-        analytics_service.get_grade_progress(student.id, db, subject_id),
-        analytics_service.get_attendance_calendar(student.id, db, subject_id),
-        analytics_service.get_score_vs_class_average(student.id, db, subject_id),
-        analytics_service.get_module_reading_progress(student.id, db, subject_id),
-        analytics_service.get_subject_radar(student.id, db),
-    )
+    BUG FIX (2025-06): These were previously run concurrently via
+    asyncio.gather(), but all five functions share the same AsyncSession
+    (injected once per-request by FastAPI's Depends(get_db)). SQLAlchemy's
+    AsyncSession does NOT support concurrent use — only one query can be
+    in-flight on a given session at a time. Running them concurrently caused:
+
+        sqlalchemy.exc.InterfaceError: cannot perform operation:
+        another operation is in progress
+
+    Fix: run them sequentially with plain await. Each function already
+    batches its own internal queries efficiently (see analytics_service.py),
+    and each result is now cached in the analytics_cache table, so the
+    sequential cost here is small — and it's the only safe way to share
+    one session across multiple service calls.
+    """
+    grade_progress = await analytics_service.get_grade_progress(student.id, db, subject_id)
+    attendance_calendar = await analytics_service.get_attendance_calendar(student.id, db, subject_id)
+    score_vs_avg = await analytics_service.get_score_vs_class_average(student.id, db, subject_id)
+    module_progress = await analytics_service.get_module_reading_progress(student.id, db, subject_id)
+    subject_radar = await analytics_service.get_subject_radar(student.id, db)
 
     return {
         "grade_progress":      grade_progress,
@@ -122,20 +127,18 @@ async def get_bayesian_analytics(
       improvement_probability– P(reach target grade)
       students_like_you      – percentile vs anonymised peers
       risk_assessment        – Low / Moderate / High Risk + factors
-    """
-    import asyncio
 
-    (
-        predicted,
-        improvement,
-        peers,
-        risk,
-    ) = await asyncio.gather(
-        analytics_service.get_predicted_final_grade(student.id, db, subject_id),
-        analytics_service.get_improvement_probability(student.id, db, target_grade, subject_id),
-        analytics_service.get_students_like_you(student.id, db),
-        analytics_service.get_risk_assessment(student.id, db),
-    )
+    BUG FIX (2025-06): Same root cause as the descriptive endpoint above —
+    asyncio.gather() against one shared AsyncSession is unsafe and threw
+    "another operation is in progress" under load. Switched to sequential
+    awaits. students_like_you (the heaviest call) is already internally
+    batched to 3 queries total (was up to 600 before the earlier perf fix),
+    so the sequential cost here is small.
+    """
+    predicted = await analytics_service.get_predicted_final_grade(student.id, db, subject_id)
+    improvement = await analytics_service.get_improvement_probability(student.id, db, target_grade, subject_id)
+    peers = await analytics_service.get_students_like_you(student.id, db)
+    risk = await analytics_service.get_risk_assessment(student.id, db)
 
     return {
         "predicted_grade":          predicted,
