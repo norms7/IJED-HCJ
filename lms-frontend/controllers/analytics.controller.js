@@ -39,6 +39,20 @@ const AnalyticsController = {
   async load() {
     const area = document.getElementById('content-area');
 
+    // BUG FIX (2025-06): shell() always renders with the Descriptive tab
+    // marked active and the Bayesian panel hidden, regardless of whatever
+    // _currentTab happened to be set to from a previous visit. If the user
+    // had switched to Bayesian, then navigated away and back, _currentTab
+    // stayed 'bayesian' in memory while the screen visually reset to
+    // Descriptive — a state/DOM mismatch. The next click on "Bayesian" then
+    // hit the early-return guard in switchTab() ("if tab === _currentTab,
+    // do nothing") and silently no-op'd, making the tab look broken.
+    //
+    // Fix: explicitly reset _currentTab to 'descriptive' here, matching
+    // exactly what shell() always renders. This keeps state and DOM in sync
+    // on every fresh entry into the Analytics section.
+    this._currentTab = 'descriptive';
+
     // Reset state on each entry
     this._destroyAllCharts();
     this._descData  = null;
@@ -56,6 +70,31 @@ const AnalyticsController = {
 
     // Load the default tab
     await this._loadDescriptive();
+
+    // PERF FIX (2025-06): prefetch the Bayesian bundle in the background
+    // once Descriptive has finished. The user is looking at Descriptive
+    // data already, so this costs nothing perceived — but by the time they
+    // click the Bayesian tab, _bayesData is already populated and
+    // switchTab() renders instantly instead of showing a loading skeleton.
+    // Caught and ignored on failure: if this silently fails, the user just
+    // sees the normal loading skeleton when they actually click the tab,
+    // same as before this fix existed.
+    this._prefetchBayesian();
+  },
+
+  /**
+   * Background prefetch — never shown to the user, never throws into the
+   * caller. If it fails, _bayesData stays null and _loadBayesian() will
+   * just fetch normally (with its own loading skeleton) when the tab is
+   * actually clicked.
+   */
+  async _prefetchBayesian() {
+    if (this._bayesData) return; // already have it somehow
+    try {
+      this._bayesData = await api.getBayesianAnalytics(this._targetGrade, this._currentSubject);
+    } catch (_) {
+      this._bayesData = null; // let the normal click-triggered load retry
+    }
   },
 
   // ── Public: tab switching ─────────────────────────────────────────────────
